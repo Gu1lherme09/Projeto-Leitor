@@ -1,0 +1,45 @@
+{
+    "nome": "Arq",
+    "arquivos": [
+        {
+            "nome": "Novo",
+            "extensao": "docx",
+            "tamanho_kb": 0.0
+        },
+        {
+            "nome": "Teste",
+            "extensao": "txt",
+            "tamanho_kb": 0.0
+        }
+    ],
+    "subpastas": [
+        {
+            "nome": "Teste",
+            "arquivos": [
+                {
+                    "nome": "Pasta2",
+                    "extensao": "docx",
+                    "tamanho_kb": 0.0
+                },
+                {
+                    "nome": "Ter2",
+                    "extensao": "xlsx",
+                    "tamanho_kb": 6.16
+                }
+            ],
+            "subpastas": [
+                {
+                    "nome": "Pasta3",
+                    "arquivos": [
+                        {
+                            "nome": "GioGLhqXoAAute4",
+                            "extensao": "jpg",
+                            "tamanho_kb": 24.01
+                        }
+                    ],
+                    "subpastas": []
+                }
+            ]
+        }
+    ]
+}
