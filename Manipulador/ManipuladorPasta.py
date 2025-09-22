@@ -52,7 +52,7 @@ class ManipuladorPasta:
             return {}
 
     def carregar_estrutura(self):
-        """Carrega a estrutura de pastas de forma inteligente."""
+        """Carrega a estrutura de pastas"""
         pasta_cache = os.path.join(os.getcwd(), "cache")
         os.makedirs(pasta_cache, exist_ok=True)
         cache_file = os.path.join(pasta_cache, "cache.json")

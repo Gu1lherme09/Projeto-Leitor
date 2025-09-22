@@ -1,5 +1,5 @@
 {
-    "data": "22_09_2025,12:22",
+    "data": "22_09_2025,16:46",
     "estrutura": {
         "nome": "Arq",
         "caminho_completo": "./Arq",
@@ -49,6 +49,13 @@
                                 "nome": "Pasta3",
                                 "caminho_completo": "./Arq\\novo\\Teste\\Pasta3",
                                 "arquivos": [
+                                    {
+                                        "nome": "dinewdbwepd",
+                                        "extensao": "txt",
+                                        "tamanho": 7,
+                                        "hash_md5": null,
+                                        "caminho_completo": "./Arq\\novo\\Teste\\Pasta3\\dinewdbwepd.txt"
+                                    },
                                     {
                                         "nome": "GioGLhqXoAAute4",
                                         "extensao": "jpg",

@@ -22,9 +22,9 @@ class ControladorProjeto:
                 print("  - Atencao: O tamanho da pasta analisada é maior que o espaco livre em disco!")
 
         except FileNotFoundError:
-            print(f"\nErro: Nao foi possivel analisar o espaco em disco. O caminho '{self.caminho_pasta}' existe?")
+            print(f"\nErro: Nao foi possivel analisar o espaco em disco {self.caminho_pasta}")
         except Exception as e:
-            print(f"\nOcorreu um erro inesperado ao verificar o espaco em disco: {e}")
+            print(f"\nOcorreu um erro ao verificar o espaco em disco: {e}")
 
 
     def executar(self):
