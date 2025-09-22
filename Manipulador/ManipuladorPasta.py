@@ -25,7 +25,7 @@ class ManipuladorPasta:
         self.caminho = caminho
         self.raiz = None
         self.no_raiz = None
-        # A GUI ou o controlador CLI chamarão carregar_estrutura explicitamente.
+        self.carregar_estrutura()
 
     def _carregar_cache_antigo(self, cache_file):
         """Carrega o cache antigo e o retorna como um dicionário de arquivos."""
@@ -108,7 +108,7 @@ class ManipuladorPasta:
         mostrar_pasta(self.no_raiz)
 
     def detectar_duplicatas(self):
-        """Detecta arquivos duplicados e retorna a lista."""
+        """Detecta arquivos duplicados e imprime os resultados."""
         from Classe.Arquivo import Arquivo
 
         tamanho_dict = defaultdict(list)
@@ -140,21 +140,17 @@ class ManipuladorPasta:
                     total_duplicados += len(grupo) - 1
                     espaco_duplicado += (len(grupo) - 1) * tamanho
         
-        # A GUI vai cuidar da exibição. Apenas imprimimos no modo CLI.
-        # A verificação isatty() ajuda a detectar se está rodando em um terminal interativo
-        if sys.stdout.isatty():
-            if not duplicatas:
-                print("\nNenhum arquivo duplicado encontrado.")
-            else:
-                print("\nArquivos duplicados encontrados (usando MD5):")
-                for tamanho, hash_value, grupo in duplicatas:
-                    print(f"\nTamanho: {tamanho} bytes  - Hash: {hash_value}")
-                    for i, (caminho, arquivo) in enumerate(grupo, 1):
-                        caminho_relativo = os.path.relpath(os.path.join(caminho, f"{arquivo.nome}.{arquivo.extensao}"), self.caminho)
-                        print(f" {i}. {arquivo.nome}.{arquivo.extensao} em {caminho_relativo}")
+        if not duplicatas:
+            print("\nNenhum arquivo duplicado encontrado.")
+            return
 
-                print(f"\nEstatisticas:")
-                print(f" Arquivos duplicados: {total_duplicados}")
-                print(f" Espaco desperdicado: {espaco_duplicado / (1024 * 1024):.2f} MB")
+        print("\nArquivos duplicados encontrados (usando MD5):")
+        for tamanho, hash_value, grupo in duplicatas:
+            print(f"\nTamanho: {tamanho} bytes  - Hash: {hash_value}")
+            for i, (caminho, arquivo) in enumerate(grupo, 1):
+                caminho_relativo = os.path.relpath(os.path.join(caminho, f"{arquivo.nome}.{arquivo.extensao}"), self.caminho)
+                print(f" {i}. {arquivo.nome}.{arquivo.extensao} em {caminho_relativo}")
 
-        return duplicatas
+        print(f"\nEstatisticas:")
+        print(f" Arquivos duplicados: {total_duplicados}")
+        print(f" Espaco desperdicado: {espaco_duplicado / (1024 * 1024):.2f} MB")
