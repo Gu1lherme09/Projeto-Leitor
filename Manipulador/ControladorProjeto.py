@@ -5,7 +5,16 @@ from Manipulador.ManipuladorPasta import ManipuladorPasta
 
 class ControladorProjeto:
     def __init__(self):
-        self.caminho_pasta = "./Arq"
+        caminho_valido = False
+        caminho_pasta = ""
+        while not caminho_valido:
+            caminho_pasta = input("Digite o caminho da pasta que deseja analisar: ")
+            if os.path.isdir(caminho_pasta):
+                caminho_valido = True
+            else:
+                print("Caminho invalido ou nao e uma pasta. Tente novamente.")
+        
+        self.caminho_pasta = caminho_pasta
         self.manipulador = ManipuladorPasta(self.caminho_pasta)
 
     def verificar_espaco_livre(self):
@@ -28,11 +37,11 @@ class ControladorProjeto:
 
 
     def executar(self):
+        print(f"Analisando pasta: {self.caminho_pasta}")
         # Tarefa 5: Verificar espaço livre antes de outras operações
         self.verificar_espaco_livre()
 
-        print("\nExibindo estrutura da pasta:")
-        self.manipulador.mostrar()
+        # self.manipulador.mostrar() # Removed as per user request to not show tree in terminal
         print("\nDeseja verificar arquivos duplicados? (s/n): ", end="")
         if input().lower() in ['s', 'y', 'sim']:
             # agora sempre usa MD5

@@ -3,12 +3,13 @@ from Classe.Arquivo import Arquivo
 from ListaEncadeada.NoPasta import NoPasta
 
 class Pasta:
-    def __init__(self, caminho: str):
+    def __init__(self, caminho: str, ler_conteudo: bool = True):
         self.nome = os.path.basename(caminho)
         self.caminho_completo = caminho
         self.arquivos = []
         self.subpastas = None
-        self._ler_conteudo(caminho)
+        if ler_conteudo:
+            self._ler_conteudo(caminho)
 
     def _ler_conteudo(self, caminho: str):
         anterior = None
@@ -49,7 +50,7 @@ class Pasta:
 
     @classmethod
     def from_dict(cls, data):
-        pasta = cls(data["caminho_completo"])
+        pasta = cls(data["caminho_completo"], ler_conteudo=False)
         pasta.arquivos = [Arquivo.from_dict(a) for a in data["arquivos"]]
         anterior = None
         for subpasta_data in data["subpastas"]:
