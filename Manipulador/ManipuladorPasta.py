@@ -133,3 +133,61 @@ class ManipuladorPasta:
         print(f"\n📈 Estatísticas:")
         print(f" Arquivos duplicados: {total_duplicados}")
         print(f" Espaço desperdiçado: {espaco_duplicado / (1024 * 1024):.2f} MB")
+
+    def buscar(self, termo):
+        termo = termo.lower()
+        resultados = []
+        self._buscar_recursivo(self.no_raiz, termo, "", resultados)
+
+        if not resultados:
+            print(f"\n🔍 Nada encontrado com '{termo}'.")
+        else:
+            print(f"\n🔎 Resultados da busca por '{termo}':")
+            for idx, (tipo, nome, caminho, pasta_obj) in enumerate(resultados, 1):
+                print(f"{idx}. {tipo}: {nome}  -->  {caminho}")
+
+            # Se houver pastas encontradas, perguntar se deseja entrar
+            pastas = [(i, r) for i, r in enumerate(resultados) if r[0] == "📁 Pasta"]
+            if pastas:
+                escolha = input("\nDeseja acessar o conteúdo de alguma pasta? Digite o número ou ENTER para pular: ")
+                if escolha.isdigit():
+                    escolha = int(escolha) - 1
+                    if 0 <= escolha < len(resultados) and resultados[escolha][0] == "📁 Pasta":
+                        _, nome, caminho, pasta_obj = resultados[escolha]
+                        self.mostrar_conteudo_pasta(pasta_obj)
+
+
+    def _buscar_recursivo(self, no, termo, caminho_atual, resultados):
+        while no:
+            pasta = no.pasta
+            caminho_atual = os.path.join(caminho_atual, pasta.nome)
+
+            if termo in pasta.nome.lower():
+                resultados.append(("📁 Pasta", pasta.nome, caminho_atual, pasta))
+
+            for arq in pasta.arquivos:
+                nome_completo = f"{arq.nome}.{arq.extensao}".lower()
+                if termo in nome_completo:
+                    resultados.append(("📄 Arquivo", nome_completo, caminho_atual, None))
+
+            if no.pasta.subpastas:
+                self._buscar_recursivo(no.pasta.subpastas, termo, caminho_atual, resultados)
+
+            no = no.proximo
+            
+    def mostrar_conteudo_pasta(self, pasta):
+        print(f"\n📂 Conteúdo da pasta: {pasta.nome}")
+        self._mostrar_recursivo_pasta(pasta, 0)
+
+    def _mostrar_recursivo_pasta(self, pasta, nivel):
+        print("  " * nivel + f"📁 {pasta.nome}")
+
+        # arquivos da pasta
+        for arq in pasta.arquivos:
+            print("  " * (nivel + 1) + f"- {arq.nome}.{arq.extensao}")
+
+        # subpastas (percorrendo a lista ligada)
+        sub = pasta.subpastas
+        while sub is not None:
+            self._mostrar_recursivo_pasta(sub.pasta, nivel + 1)
+            sub = sub.proximo
