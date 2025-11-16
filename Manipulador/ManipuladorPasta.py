@@ -36,29 +36,30 @@ class ManipuladorPasta:
             try:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
-                timestamp_str = data.get("data", "")
-                dt = datetime.strptime(timestamp_str, '%d_%m_%Y,%H:%M')
-                dt = dt.replace(tzinfo=timezone(timedelta(hours=-3)))
-                now = datetime.now(timezone(timedelta(hours=-3)))
-                age_min = (now - dt).total_seconds() / 60
+                if (self.no_raiz is not None and self.raiz is not None):
+                    timestamp_str = data.get("data", "")
+                    dt = datetime.strptime(timestamp_str, '%d_%m_%Y,%H:%M')
+                    dt = dt.replace(tzinfo=timezone(timedelta(hours=-3)))
+                    now = datetime.now(timezone(timedelta(hours=-3)))
+                    age_min = (now - dt).total_seconds() / 60
 
-                if age_min <= 30:
-                    self.raiz = Pasta.from_dict(data["estrutura"])
-                    self.no_raiz = NoPasta(self.raiz)
-                    print("✅ Estrutura carregada do cache.")
-                    return
-                else:
-                    resposta = input(f"O cache tem {age_min:.1f} minutos. Deseja refazer? (s/n): ")
-                    if resposta.lower() in ['s', 'y', 'sim']:
-                        self.raiz = Pasta(self.caminho)
-                        self.no_raiz = NoPasta(self.raiz)
-                        self.salvar_cache()
-                        return
-                    else:
+                    if age_min <= 30:
                         self.raiz = Pasta.from_dict(data["estrutura"])
                         self.no_raiz = NoPasta(self.raiz)
-                        print("✅ Estrutura carregada do cache antigo.")
+                        print("✅ Estrutura carregada do cache.")
                         return
+                    else:
+                        resposta = input(f"O cache tem {age_min:.1f} minutos. Deseja refazer? (s/n): ")
+                        if resposta.lower() in ['s', 'y', 'sim']:
+                            self.raiz = Pasta(self.caminho)
+                            self.no_raiz = NoPasta(self.raiz)
+                            self.salvar_cache()
+                            return
+                        else:
+                            self.raiz = Pasta.from_dict(data["estrutura"])
+                            self.no_raiz = NoPasta(self.raiz)
+                            print("✅ Estrutura carregada do cache antigo.")
+                            return
             except Exception as e:
                 print(f"Erro ao carregar cache: {e}")
 
@@ -140,7 +141,13 @@ class ManipuladorPasta:
         self._buscar_recursivo(self.no_raiz, termo, "", resultados)
 
         if not resultados:
-            print(f"\n🔍 Nada encontrado com '{termo}'.")
+            print(f"\n🔍 Nenhum arquivo/pasta/extensão foi encontrado com '{termo}'.")
+            print("")
+            print("Deseja refazer o cache? (s/n): ", end="")
+            if input().lower() in ['s', 'y', 'sim']:
+                self.carregar_estrutura()
+                print("Cache refeito.")
+            
         else:
             print(f"\n🔎 Resultados da busca por '{termo}':")
             for idx, (tipo, nome, caminho, pasta_obj) in enumerate(resultados, 1):
