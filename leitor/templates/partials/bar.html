@@ -1,0 +1,17 @@
+    {% load static %}
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <span class="logo-mark">LD</span>
+            <span class="logo-text">Leitor de Disco</span>
+        </div>
+
+        <nav class="sidebar-menu">
+            <a href="{% url 'home' %}" class="menu-item active">Visão Geral</a>
+            <a href="{% url 'pesquisar' %}" class="menu-item">Busca por Arquivos</a>
+            <a href="{% url 'duplicados' %}" class="menu-item">Duplicados</a>
+        </nav>
+
+        <div class="sidebar-footer">
+            <span>Cache: atualizado há 5 min</span>
+        </div>
+    </aside>
