@@ -43,7 +43,7 @@ class ManipuladorPasta:
                 dt = dt.replace(tzinfo=timezone(timedelta(hours=-3)))
                 now = datetime.now(timezone(timedelta(hours=-3)))
                 age_min = (now - dt).total_seconds() / 60
-                
+
                 if age_min <= 30:
                     # usa cache "novo"
                     self.raiz = Pasta.from_dict(data["estrutura"])
@@ -62,6 +62,37 @@ class ManipuladorPasta:
 
             except Exception as e:
                 print(f"Erro ao carregar cache: {e}")
+
+        # Antes de tentar criar a Pasta a partir do caminho, garanta que o caminho existe
+        # e trate o caso em que o caminho contém o nome do diretório atual duplicado.
+        caminho_original = self.caminho
+        if not os.path.exists(self.caminho):
+            try:
+                # Normaliza separadores
+                normalized = self.caminho.replace("\\", os.sep).replace("/", os.sep)
+                cwd_base = os.path.basename(os.getcwd())
+                prefix = cwd_base + os.sep
+
+                # Se o caminho começa com o nome da pasta atual (ex.: "Projeto-Leitor\\Arq")
+                # e esse prefixo causa duplicação, remova o prefixo.
+                if normalized.startswith(prefix):
+                    candidate = normalized[len(prefix):]
+                    if os.path.exists(candidate):
+                        self.caminho = candidate
+                        print(f"⚠️ Ajustado caminho de '{caminho_original}' para '{self.caminho}' (evitou duplicação).")
+                    else:
+                        os.makedirs(candidate, exist_ok=True)
+                        self.caminho = candidate
+                        print(f"⚠️ Criada pasta '{self.caminho}' (ajuste do caminho original '{caminho_original}').")
+                else:
+                    os.makedirs(self.caminho, exist_ok=True)
+                    print(f"⚠️ Criada pasta '{self.caminho}' porque não existia.")
+            except Exception as e:
+                print(f"Erro ao preparar caminho '{self.caminho}': {e}")
+                fallback = os.path.join(os.getcwd(), "Arq")
+                os.makedirs(fallback, exist_ok=True)
+                self.caminho = fallback
+                print(f"⚠️ Usando pasta fallback '{self.caminho}'.")
 
         self.raiz = Pasta(self.caminho)
         self.no_raiz = NoPasta(self.raiz)
@@ -111,7 +142,12 @@ class ManipuladorPasta:
             for caminho, arquivo in arquivos:
                 # calcular hash se ainda não calculado
                 if not arquivo.hash_md5:
-                    arquivo._calcular_hash()
+                    # atenção: cheque se sua classe Arquivo tem esse método com este nome
+                    try:
+                        arquivo._calcular_hash()
+                    except AttributeError:
+                        # se o método tiver outro nome, trate aqui
+                        pass
                 if arquivo.hash_md5:
                     hash_dict[arquivo.hash_md5].append((caminho, arquivo))
 
@@ -136,52 +172,116 @@ class ManipuladorPasta:
         print(f" Arquivos duplicados: {total_duplicados}")
         print(f" Espaço desperdiçado: {espaco_duplicado / (1024 * 1024):.2f} MB")
 
-    def buscar(self, termo):
+    def buscar_pasta(self, termo):
         termo = termo.lower()
         resultados = []
-        self._buscar_recursivo(self.no_raiz, termo, "", resultados)
+
+        def rec(no, caminho):
+            while no:
+                pasta = no.pasta
+                caminho_atual = os.path.join(caminho, pasta.nome)
+
+                if termo in pasta.nome.lower():
+                    resultados.append((pasta.nome, caminho_atual, pasta))
+
+                if pasta.subpastas:
+                    rec(pasta.subpastas, caminho_atual)
+
+                no = no.proximo
+
+        rec(self.no_raiz, "")
 
         if not resultados:
-            print(f"\n🔍 Nenhum arquivo/pasta/extensão foi encontrado com '{termo}'.")
-            print("")
-            print("Deseja refazer o cache? (s/n): ", end="")
-            if input().lower() in ['s', 'y', 'sim']:
+            print(f"\n🔍 Nenhuma pasta encontrada com '{termo}'.")
+            resp = input("Deseja refazer o cache? (s/n): ").strip().lower()
+            if resp in ["s", "sim", "y"]:
                 self.carregar_estrutura(forcar_recriacao=True)
-                print("Cache refeito.")
-            
-        else:
-            print(f"\n🔎 Resultados da busca por '{termo}':")
-            for idx, (tipo, nome, caminho, pasta_obj) in enumerate(resultados, 1):
-                print(f"{idx}. {tipo}: {nome}  -->  {caminho}")
+            return
 
-            # Se houver pastas encontradas, perguntar se deseja entrar
-            pastas = [(i, r) for i, r in enumerate(resultados) if r[0] == "📁 Pasta"]
-            if pastas:
-                escolha = input("\nDeseja acessar o conteúdo de alguma pasta? Digite o número ou ENTER para pular: ")
-                if escolha.isdigit():
-                    escolha = int(escolha) - 1
-                    if 0 <= escolha < len(resultados) and resultados[escolha][0] == "📁 Pasta":
-                        _, nome, caminho, pasta_obj = resultados[escolha]
-                        self.mostrar_conteudo_pasta(pasta_obj)
+        print(f"\n📁 Pastas encontradas:")
+        for i, (nome, caminho, p) in enumerate(resultados, 1):
+            print(f"{i}. {nome}  --> {caminho}")
 
+        print("\nEscolha uma opção:")
+        print("1 - Abrir uma pasta específica")
+        print("2 - Abrir TODAS as pastas encontradas")
+        print("ENTER - Não abrir nada")
 
-    def _buscar_recursivo(self, no, termo, caminho_atual, resultados):
-        while no:
-            pasta = no.pasta
-            caminho_atual = os.path.join(caminho_atual, pasta.nome)
+        opcao = input("Opção: ").strip()
 
-            if termo in pasta.nome.lower():
-                resultados.append(("📁 Pasta", pasta.nome, caminho_atual, pasta))
+        if opcao == "":
+            return
 
-            for arq in pasta.arquivos:
-                nome_completo = f"{arq.nome}.{arq.extensao}".lower()
-                if termo in nome_completo:
-                    resultados.append(("📄 Arquivo", nome_completo, caminho_atual, None))
+        if opcao == "2":
+            print("\n📂 Abrindo TODAS as pastas encontradas...")
+            for _, _, pasta_obj in resultados:
+                print(f"\n📂 Conteúdo da pasta: {pasta_obj.nome}")
+                self._mostrar_recursivo_pasta(pasta_obj, 0)
+            return
 
-            if no.pasta.subpastas:
-                self._buscar_recursivo(no.pasta.subpastas, termo, caminho_atual, resultados)
+        if opcao == "1":
+            escolha = input("Digite o número da pasta que deseja abrir: ").strip()
 
-            no = no.proximo
+            if escolha.isdigit():
+                idx = int(escolha) - 1
+
+                if 0 <= idx < len(resultados):
+                    _, _, pasta_obj = resultados[idx]
+                    print(f"\n📂 Conteúdo da pasta: {pasta_obj.nome}")
+                    self._mostrar_recursivo_pasta(pasta_obj, 0)
+                else:
+                    print("❌ Número inválido!")
+            else:
+                print("❌ Entrada inválida!")
+            return
+
+        print("❌ Opção inválida.")
+
+    def buscar_extensao(self, termo):
+        termo = termo.lower().strip()
+
+        if not termo.startswith("."):
+            termo = "." + termo
+
+        resultados = []
+
+        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
+            nome_ext = f"{arquivo.nome}.{arquivo.extensao}".lower()
+            if nome_ext.endswith(termo):
+                resultados.append((nome_ext, caminho_pasta))
+
+        if not resultados:
+            print(f"\n🔍 Nenhum arquivo encontrado com extensão '{termo}'.")
+            resp = input("Deseja refazer o cache? (s/n): ").strip().lower()
+            if resp in ["s", "sim", "y"]:
+                self.carregar_estrutura(forcar_recriacao=True)
+            return
+
+        print(f"\n📄 Arquivos encontrados com extensão '{termo}':")
+        for i, (nome, caminho) in enumerate(resultados, 1):
+            print(f"{i}. {nome}  -->  {caminho}")
+
+    def buscar_arquivo(self, termo):
+        termo = termo.lower()
+        resultados = []
+
+        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
+            nome = arquivo.nome.lower()
+
+            if termo in nome:
+                nome_ext = f"{arquivo.nome}.{arquivo.extensao}"
+                resultados.append((nome_ext, caminho_pasta))
+
+        if not resultados:
+            print(f"\n🔍 Nenhum arquivo encontrado contendo '{termo}' no nome do arquivo.")
+            resp = input("Deseja refazer o cache? (s/n): ").strip().lower()
+            if resp in ["s", "sim", "y"]:
+                self.carregar_estrutura(forcar_recriacao=True)
+            return
+
+        print(f"\n📄 Arquivos encontrados:")
+        for i, (nome, caminho) in enumerate(resultados, 1):
+            print(f"{i}. {nome}  -->  {caminho}")
             
     def mostrar_conteudo_pasta(self, pasta):
         print(f"\n📂 Conteúdo da pasta: {pasta.nome}")
