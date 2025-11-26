@@ -1,0 +1,645 @@
+{% load static %}
+
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <title>Leitor de Disco - Dashboard</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app">
+
+    {% include 'partials/bar.html' %}
+    <main class="main">
+        <header class="main-header">
+            <div>
+                <h1>Fluxo de Arquivos - Acumulado</h1>
+                <p class="subtitle">Resumo da análise do disco e do cache</p>
+            </div>
+                <div class="header-actions">
+                    <button class="btn primary" id="btn-nova-varredura">Nova varredura</button>
+                    <button class="btn ghost">Atualizar cache</button>
+                </div>
+        </header>
+
+        <section class="stats-grid">
+            <article class="stat-card">
+                <span class="stat-label">Arquivos encontrados</span>
+                <span class="stat-value">
+                    {{ total_arquivos|default:"0" }}
+                </span>
+                <span class="stat-sub">em todos os diretórios monitorados</span>
+            </article>
+
+            <article class="stat-card">
+                <span class="stat-label">Tamanho total</span>
+                <span class="stat-value">
+                    {{ total_tamanho_gb|floatformat:1 }} GB
+                </span>
+                <span class="stat-sub">incluindo cache reaproveitado</span>
+            </article>
+
+            <article class="stat-card">
+                <span class="stat-label">Arquivos duplicados</span>
+
+                {% if hash_disponivel %}
+                    <span class="stat-value negative">
+                        - {{ total_duplicados }}
+                    </span>
+                    <span class="stat-sub">
+                        potencial para limpeza ({{ espaco_duplicado_gb|floatformat:1 }} GB)
+                    </span>
+                {% else %}
+                    <span class="stat-value negative">
+                        -- 
+                    </span>
+                    <span class="stat-sub">
+                        Disponível após análise por hash na tela de <strong>Duplicados</strong> ou ao marcar para Fazer Hash.
+                    </span>
+                {% endif %}
+            </article>
+
+            <article class="stat-card">
+                <span class="stat-label">Extensões únicas</span>
+                <span class="stat-value">
+                    {{ extensoes_unicas|default:"0" }}
+                </span>
+                <span class="stat-sub">tipos de arquivos diferentes</span>
+            </article>
+        </section>
+
+        <section class="grid-2">
+            <article class="card">
+                <header class="card-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                    <div>
+                        <h2>Fluxo de Arquivos do espaço ocupado pelos dados do cache</h2>
+                        <span class="card-subtitle">Espaço ocupado / Espaço livre</span>
+                    </div>
+
+                    <!-- Toggle de unidade -->
+                <div class="unit-switch">
+                    <button class="btn btn-unit is-active" data-unit="GB">GB</button>
+                    <button class="btn btn-unit" data-unit="MB">MB</button>
+                </div>
+                </header>
+                <div class="pizza-wrapper">
+                    <canvas id="pizzaChart"></canvas>
+
+                    <div class="pizza-info">
+                        <strong>Tamanho total</strong>
+                        <span id="pizza-total">0 GB</span>
+                        <small>incluindo cache reaproveitado</small>
+                    </div>
+                </div>
+            </article>
+            <article class="card">
+                <header class="card-header">
+                    <h2>Uso por Extensão</h2>
+                    <span class="card-subtitle">As 5 extensões que mais consomem espaço</span>
+                </header>
+                <ul class="list-extensions">
+                    {% for item in top_extensoes %}
+                        <li>
+                            <span>.{{ item.ext }}</span>
+                            <span>{{ item.gb|floatformat:1 }} GB</span>
+                        </li>
+                    {% empty %}
+                        <li>
+                            <span>Sem dados</span>
+                            <span>0 GB</span>
+                        </li>
+                    {% endfor %}
+
+                    {% if outros_gb > 0 %}
+                        <li>
+                            <span>outros</span>
+                            <span>{{ outros_gb|floatformat:1 }} GB</span>
+                        </li>
+                    {% endif %}
+                </ul>
+            </article>
+        </section>
+
+        <!-- LINHA 3: DONUTS / INDICADORES -->
+        <section class="grid-3">
+            <article class="card center">
+                <header class="card-header">
+                    <h2>Distribuição por extensão</h2>
+                </header>
+                <div class="donut-container">
+                    <div class="donut" style="border:none; width:200px; height:200px;">
+                        <canvas id="extChart"></canvas>
+                    </div>
+                    <p id="extChartSubtitle">
+                        Tamanho total: {{ total_tamanho_gb|floatformat:2 }} GB (incluindo cache reaproveitado)
+                    </p>
+                </div>
+            </article>
+            <article class="card center" id="integridade-card">
+                <header class="card-header">
+                    <h2>Carregamento</h2>
+                </header>
+
+                <div class="integridade-circle-wrapper">
+                    <svg class="integridade-circle" viewBox="0 0 120 120">
+                        <!-- círculo de fundo (cinza) -->
+                        <circle
+                            class="integridade-circle-bg"
+                            cx="60" cy="60" r="52"
+                        ></circle>
+
+                        <!-- círculo de progresso (verde) -->
+                        <circle
+                            class="integridade-circle-fg"
+                            id="integridade-circle-fg"
+                            cx="60" cy="60" r="52"
+                        ></circle>
+                    </svg>
+
+                    <div class="integridade-circle-inner">
+                        <span id="integridade-percent">100%</span>
+                        <small id="integridade-status">ok</small>
+                    </div>
+                </div>
+
+                <p id="integridade-text">
+                    Arquivos lidos sem erro na última varredura.
+                </p>
+            </article>
+           <article class="card">
+                <header class="card-header">
+                    <h2>Filtros rápidos</h2>
+                </header>
+                <div class="filters">
+                    <input class="input" type="text" placeholder="Buscar por nome ou caminho...">
+
+                    <!-- Filtro de extensão controlado pelo JS -->
+                    <select class="input" id="filtro-extensao">
+                        <option value="">Extensão</option>
+                        {% for item in top_extensoes %}
+                            <option value="{{ item.ext }}">.{{ item.ext }}</option>
+                        {% endfor %}
+                    </select>
+
+                    <select class="input" id="filtro-tamanho">
+                        <option value="">Tamanho</option>
+                        <option value="gt_1gb">&gt; 1 GB</option>
+                        <option value="between_100mb_1gb">100 MB – 1 GB</option>
+                        <option value="lt_100mb">&lt; 100 MB</option>
+                    </select>
+
+                    <button class="btn primary full" id="btn-aplicar-filtros" type="button">
+                        Aplicar filtros
+                    </button>
+                </div>
+            </article>
+        </section>
+    </main>
+    <!-- MODAL NOVA VARREDURA -->
+    <div class="modal-backdrop" id="modal-nova-varredura">
+        <div class="modal">
+            <header class="modal-header">
+                <h2>Nova varredura</h2>
+                <button type="button" class="modal-close" data-modal-close>&times;</button>
+            </header>
+
+            <div class="modal-body">
+                <p class="modal-text">
+                    Informe o caminho que o analisador deve varrer no disco. 
+                    Ex: <span class="mono">D:\Arquivos\Clientes</span>
+                </p>
+
+                <form method="post" action="{% url 'nova_varredura' %}">
+                    {% csrf_token %}
+                    
+                    <div class="search-field">
+                        <label for="scan-path">Caminho da pasta</label>
+                        <input
+                            id="scan-path"
+                            name="scan_path"
+                            class="input mono"
+                            type="text"
+                            placeholder="Ex: D:\Projetos\Arquivos"
+                            required
+                        >
+                    </div>
+
+                    <div class="search-field" style="margin-top: 8px;">
+                        <label class="checkbox-label">
+                            <input
+                                type="checkbox"
+                                name="calcular_hash"
+                                value="1"
+                            >
+                            Calcular hash (MD5) para detectar duplicados  
+                            <span style="color: var(--text-muted); font-size: 11px;">
+                                (pode deixar a varredura mais lenta)
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn ghost" data-modal-close>Cancelar</button>
+                        <button type="submit" class="btn primary">Iniciar varredura</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+</body>
+</html>
+{{ top_extensoes|json_script:"ext-data" }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    // =========================
+    // BASE PARA OCUPADO / LIVRE (GB → MB)
+    // =========================
+    const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
+    const baseLivreGB   = parseFloat("{{ espaco_livre_gb|default:'0' }}") || 0;
+
+    let currentUnit = "GB";
+    let percOcupado = 0;
+    let percLivre   = 0;
+
+    function getValues(unit) {
+        if (unit === "MB") {
+            return {
+                ocupado: baseOcupadoGB * 1024,
+                livre:   baseLivreGB   * 1024,
+                suffix:  "MB",
+            };
+        }
+        return {
+            ocupado: baseOcupadoGB,
+            livre:   baseLivreGB,
+            suffix:  "GB",
+        };
+    }
+
+    // =========================
+    // GRÁFICO PIZZA - DISTRIBUIÇÃO DO ESPAÇO
+    // =========================
+    const pizzaCanvas = document.getElementById("pizzaChart");
+    let pizzaChart = null;
+
+    if (pizzaCanvas) {
+        const initial = getValues(currentUnit);
+        const total = initial.ocupado + initial.livre || 1;
+        percOcupado = (initial.ocupado / total * 100).toFixed(1);
+        percLivre   = (initial.livre   / total * 100).toFixed(1);
+
+        if (initial.ocupado > 0 || initial.livre > 0) {
+            pizzaChart = new Chart(pizzaCanvas.getContext("2d"), {
+                type: "doughnut",
+                data: {
+                    labels: ["Ocupado", "Livre"],
+                    datasets: [{
+                        data: [initial.ocupado, initial.livre],
+                        backgroundColor: [
+                            "rgba(34,197,94,0.9)",    // verde ocupado
+                            "rgba(148,163,184,0.4)"  // cinza livre
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: "70%",
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: "bottom"
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const val = ctx.parsed;
+                                    const perc = ctx.dataIndex === 0 ? percOcupado : percLivre;
+                                    return `${val.toFixed(2)} ${currentUnit} (${perc}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+
+            const pizzaTotal = document.getElementById("pizza-total");
+            if (pizzaTotal) {
+                pizzaTotal.textContent = total.toFixed(2) + " " + currentUnit;
+            }
+        }
+
+        // Toggle GB / MB (botões .btn-unit)
+        const unitButtons = document.querySelectorAll(".btn-unit");
+        unitButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const unit = btn.dataset.unit;
+                if (!unit || unit === currentUnit || !pizzaChart) return;
+
+                currentUnit = unit;
+                unitButtons.forEach(b => b.classList.remove("is-active"));
+                btn.classList.add("is-active");
+
+                const v = getValues(currentUnit);
+                pizzaChart.data.datasets[0].data = [v.ocupado, v.livre];
+
+                const totalLocal = v.ocupado + v.livre || 1;
+                percOcupado = (v.ocupado / totalLocal * 100).toFixed(1);
+                percLivre   = (v.livre   / totalLocal * 100).toFixed(1);
+
+                const pizzaTotal = document.getElementById("pizza-total");
+                if (pizzaTotal) {
+                    pizzaTotal.textContent = totalLocal.toFixed(2) + " " + currentUnit;
+                }
+
+                pizzaChart.update();
+            });
+        });
+    }
+
+    // =========================
+    // GRÁFICO DONUT POR EXTENSÃO / TAMANHO
+    // =========================
+    const extCanvas = document.getElementById("extChart");
+    let extChart = null;
+
+    if (extCanvas) {
+        const extCtx = extCanvas.getContext("2d");
+        const totalGB = parseFloat("{{ total_tamanho_gb|default:'0' }}") || 0;
+        const bucketMaior1GB   = parseFloat("{{ bucket_maior_1gb_gb|default:'0' }}") || 0;
+        const bucket100MB1GB   = parseFloat("{{ bucket_100mb_1gb_gb|default:'0' }}") || 0;
+        const bucketMenor100MB = parseFloat("{{ bucket_menor_100mb_gb|default:'0' }}") || 0;
+
+        const extDataEl = document.getElementById("ext-data");
+        const extSubtitle = document.getElementById("extChartSubtitle");
+        let extData = [];
+
+        if (extDataEl) {
+            try {
+                extData = JSON.parse(extDataEl.textContent);
+            } catch (e) {
+                console.error("Erro ao parsear top_extensoes:", e);
+            }
+        }
+
+        function getInfoPorExtensao(extCode) {
+            if (!extCode) {
+                return {
+                    labels: ["Total do cache"],
+                    data: [totalGB],
+                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
+                };
+            }
+            const item = extData.find(e => e.ext === extCode);
+            const valorExt = item ? item.gb : 0;
+            const outros = Math.max(totalGB - valorExt, 0);
+            return {
+                labels: [`.${extCode}`, "Outros"],
+                data: [valorExt, outros],
+                subtitle: `.${extCode}: ${valorExt.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+            };
+        }
+
+        function getInfoPorTamanho(bucketKey) {
+            if (!bucketKey) {
+                return {
+                    labels: ["Total do cache"],
+                    data: [totalGB],
+                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
+                };
+            }
+
+            if (bucketKey === "gt_1gb") {
+                const outros = Math.max(totalGB - bucketMaior1GB, 0);
+                return {
+                    labels: ["> 1 GB", "Outros"],
+                    data: [bucketMaior1GB, outros],
+                    subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                };
+            }
+
+            if (bucketKey === "between_100mb_1gb") {
+                const outros = Math.max(totalGB - bucket100MB1GB, 0);
+                return {
+                    labels: ["100 MB – 1 GB", "Outros"],
+                    data: [bucket100MB1GB, outros],
+                    subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                };
+            }
+
+            if (bucketKey === "lt_100mb") {
+                const outros = Math.max(totalGB - bucketMenor100MB, 0);
+                return {
+                    labels: ["< 100 MB", "Outros"],
+                    data: [bucketMenor100MB, outros],
+                    subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                };
+            }
+
+            return {
+                labels: ["Total do cache"],
+                data: [totalGB],
+                subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
+            };
+        }
+
+        function initExtChart(info) {
+            if (extSubtitle) {
+                extSubtitle.textContent = info.subtitle;
+            }
+
+            if (!extChart) {
+                extChart = new Chart(extCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels: info.labels,
+                        datasets: [{
+                            data: info.data,
+                            backgroundColor: [
+                                "rgba(37, 99, 235, 0.9)",
+                                "rgba(148, 163, 184, 0.4)"
+                            ],
+                            borderColor: [
+                                "rgba(37, 99, 235, 1)",
+                                "rgba(148, 163, 184, 0.9)"
+                            ],
+                            borderWidth: 1.5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: "60%",
+                        plugins: {
+                            legend: {
+                                position: "bottom",
+                                labels: {
+                                    boxWidth: 12,
+                                    font: { size: 11 }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: "#fff",
+                                titleColor: "#0f172a",
+                                bodyColor: "#1e293b",
+                                borderColor: "#cbd5f5",
+                                borderWidth: 1,
+                                padding: 10,
+                                displayColors: true,
+                                callbacks: {
+                                    label: (ctxT) => {
+                                        const val = ctxT.parsed;
+                                        return `${ctxT.label}: ${val.toFixed(2)} GB`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                extChart.data.labels = info.labels;
+                extChart.data.datasets[0].data = info.data;
+                extChart.update();
+            }
+        }
+
+        // Inicial: total
+        initExtChart(getInfoPorExtensao(null));
+
+        const filtroExtensao = document.getElementById("filtro-extensao");
+        const filtroTamanho  = document.getElementById("filtro-tamanho");
+        const btnAplicar     = document.getElementById("btn-aplicar-filtros");
+
+        if (btnAplicar) {
+            btnAplicar.addEventListener("click", function () {
+                const extCode = filtroExtensao ? filtroExtensao.value : "";
+                const sizeKey = filtroTamanho  ? filtroTamanho.value  : "";
+
+                let info;
+                if (extCode) {
+                    info = getInfoPorExtensao(extCode);
+                } else if (sizeKey) {
+                    info = getInfoPorTamanho(sizeKey);
+                } else {
+                    info = getInfoPorExtensao(null);
+                }
+
+                initExtChart(info);
+            });
+        }
+    }
+
+    // =========================
+    // MODAL NOVA VARREDURA + PROGRESSO CIRCULAR
+    // =========================
+    const btnNovaVarredura = document.getElementById("btn-nova-varredura");
+    const modalBackdrop = document.getElementById("modal-nova-varredura");
+    const closeButtons = modalBackdrop ? modalBackdrop.querySelectorAll("[data-modal-close]") : [];
+    const formNovaVarredura = modalBackdrop ? modalBackdrop.querySelector("form") : null;
+
+    const integridadeCircle = document.getElementById("integridade-circle-fg");
+    const integridadePercent = document.getElementById("integridade-percent");
+    const integridadeStatus  = document.getElementById("integridade-status");
+    const integridadeText    = document.getElementById("integridade-text");
+
+    let integridadeInterval = null;
+    let integridadeProg = 100;
+    const CIRCLE_RADIUS = 52;
+    const CIRCLE_CIRC = 2 * Math.PI * CIRCLE_RADIUS;
+
+    if (integridadeCircle) {
+        integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
+    }
+
+    function setIntegridadeProgress(p) {
+        if (!integridadeCircle || !integridadePercent) return;
+        const val = Math.max(0, Math.min(100, p));
+        const offset = CIRCLE_CIRC * (1 - val / 100);
+        integridadeCircle.style.strokeDashoffset = offset;
+        integridadePercent.textContent = val + "%";
+    }
+
+    setIntegridadeProgress(100);
+
+    function ativarLoaderIntegridade() {
+        integridadeProg = 0;
+        setIntegridadeProgress(0);
+
+        if (integridadeStatus) integridadeStatus.textContent = "analisando";
+        if (integridadeText)   integridadeText.textContent   = "Varredura em andamento, aguarde...";
+
+        integridadeInterval = setInterval(() => {
+            if (integridadeProg < 95) {
+                integridadeProg += 1;
+                setIntegridadeProgress(integridadeProg);
+            }
+        }, 200);
+    }
+
+    function finalizarLoaderIntegridade() {
+        if (integridadeInterval) {
+            clearInterval(integridadeInterval);
+            integridadeInterval = null;
+        }
+        integridadeProg = 100;
+        setIntegridadeProgress(100);
+        if (integridadeStatus) integridadeStatus.textContent = "concluído";
+        if (integridadeText)   integridadeText.textContent   = "Varredura finalizada. Atualizando painel...";
+    }
+
+    if (btnNovaVarredura && modalBackdrop && formNovaVarredura) {
+        function openModal() {
+            modalBackdrop.classList.add("is-open");
+            const input = document.getElementById("scan-path");
+            if (input) setTimeout(() => input.focus(), 100);
+        }
+
+        function closeModal() {
+            modalBackdrop.classList.remove("is-open");
+        }
+
+        btnNovaVarredura.addEventListener("click", openModal);
+        closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
+
+        modalBackdrop.addEventListener("click", function (e) {
+            if (e.target === modalBackdrop) closeModal();
+        });
+
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape") closeModal();
+        });
+
+        formNovaVarredura.addEventListener("submit", function (e) {
+            e.preventDefault();
+            closeModal();
+            ativarLoaderIntegridade();
+
+            const formData = new FormData(formNovaVarredura);
+            const action = formNovaVarredura.action;
+            const csrfInput = formNovaVarredura.querySelector('input[name="csrfmiddlewaretoken"]');
+            const csrfToken = csrfInput ? csrfInput.value : "";
+
+            fetch(action, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrfToken },
+                body: formData
+            })
+            .then(resp => {
+                finalizarLoaderIntegridade();
+                setTimeout(() => window.location.reload(), 800);
+            })
+            .catch(err => {
+                console.error("Erro na varredura:", err);
+                if (integridadeStatus) integridadeStatus.textContent = "erro";
+                if (integridadeText)   integridadeText.textContent   = "Erro ao iniciar a varredura. Tente novamente.";
+            });
+        });
+    }
+});
+</script>
+
+
+

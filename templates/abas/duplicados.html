@@ -1,0 +1,223 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8" />
+    <title>Leitor de Disco - Arquivos Duplicados</title>
+    <link rel="stylesheet" href="{% static 'css/home.css' %}">
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+</head>
+<body>
+<div class="app">
+    {% include 'partials/bar.html' %}
+    <!-- CONTEÚDO PRINCIPAL -->
+    <main class="main">
+        <header class="main-header">
+            <div>
+                <h1>Arquivos Duplicados</h1>
+                <p class="subtitle">Visualize grupos de arquivos com mesmo tamanho e hash para limpeza segura.</p>
+            </div>
+            <div class="header-actions">
+                <form method="post" action="{% url 'duplicados' %}">
+                    {% csrf_token %}
+                    <button class="btn primary" type="submit">
+                        Recalcular duplicados
+                    </button>
+                </form>
+            </div>
+        </header>
+
+        <!-- RESUMO + GRÁFICO FUTURO -->
+        <section class="grid-2">
+            <article class="card">
+                <header class="card-header">
+                    <h2>Resumo dos duplicados</h2>
+                    <span class="card-subtitle">Estatísticas gerais da última varredura.</span>
+                </header>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-label">Arquivos duplicados</span>
+                        <span class="summary-value">
+                            {{ total_duplicados|default:"0" }}
+                        </span>
+                        <span class="summary-sub">arquivos que têm pelo menos um clone</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Grupos de duplicados</span>
+                        <span class="summary-value">
+                            {{ total_grupos|default:"0" }}
+                        </span>
+                        <span class="summary-sub">conjuntos com 2+ arquivos idênticos</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Espaço desperdiçado</span>
+                        <span class="summary-value">
+                            {{ espaco_duplicado_gb|floatformat:1 }} GB
+                        </span>
+                        <span class="summary-sub">poderia ser liberado com limpeza</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card">
+                <header class="card-header">
+                    <h2>Gráfico (em breve)</h2>
+                    <span class="card-subtitle">Aqui você poderá visualizar os duplicados por pasta ou extensão.</span>
+                </header>
+                <div class="chart-placeholder">
+                    <span>Área reservada para o gráfico de duplicados</span>
+                </div>
+            </article>
+        </section>
+
+        <section class="card">
+    <header class="card-header">
+        <h2>Grupos de arquivos duplicados</h2>
+        <span class="card-subtitle">
+            Arquivos com mesmo tamanho e hash MD5.
+        </span>
+    </header>
+
+    <div class="duplicates-filters">
+        <div class="search-field">
+            <label for="filtro_ext">Filtrar por extensão</label>
+            <input class="input" id="filtro_ext" type="text" placeholder="Ex: .mp4, .zip, .pdf">
+        </div>
+        <div class="search-field">
+            <label for="filtro_pasta">Filtrar por pasta</label>
+            <input class="input" id="filtro_pasta" type="text" placeholder="Parte do caminho da pasta">
+        </div>
+    </div>
+
+    {% if not hash_disponivel %}
+        <p style="margin-top: 10px; font-size: 13px; color: var(--text-muted);">
+            Nenhum hash MD5 encontrado no cache. Clique em <strong>Recalcular duplicados</strong>
+            para gerar os hashes a partir do cache.
+        </p>
+    {% endif %}
+
+        {% if grupos %}
+            {% for grupo in grupos %}
+                <div class="duplicate-group">
+                    <div class="duplicate-group-header">
+                        <div>
+                            <span class="badge badge-ext">.{{ grupo.ext }}</span>
+                            <span class="group-title">Grupo #{{ grupo.id }}</span>
+                        </div>
+                        <div class="group-meta">
+                            <span class="mono">Hash: {{ grupo.hash }}</span>
+                            <span class="badge badge-soft">
+                                Tamanho: {{ grupo.tamanho_gb|floatformat:2 }} GB
+                            </span>
+                            <span class="badge badge-dup-count">
+                                {{ grupo.qtd_arquivos }} arquivos
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="table table-compact">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Caminho completo</th>
+                                    <th>Data modificação</th>
+                                    <th>Origem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for arq in grupo.arquivos %}
+                                    <tr>
+                                        <td>{{ arq.nome }}</td>
+                                        <td class="col-path">{{ arq.caminho }}</td>
+                                        <td>{{ arq.data_mod }}</td>
+                                        <td>
+                                            <span class="badge badge-cache">Cache</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endfor %}
+        {% else %}
+        {% if hash_disponivel %}
+            <p style="margin-top: 10px; font-size: 13px; color: var(--text-muted);">
+                Nenhum grupo de arquivos duplicados encontrado na última varredura.
+            </p>
+        {% endif %}
+    {% endif %}
+
+            <div class="table-footer">
+                <span>
+                    Mostrando {{ grupos|length }} de {{ total_grupos }} grupos de duplicados.
+                </span>
+            </div> 
+        </section>
+    </main>
+</div>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const inputExt   = document.getElementById("filtro_ext");
+    const inputPasta = document.getElementById("filtro_pasta");
+    const grupos     = document.querySelectorAll(".duplicate-group");
+
+    if (!inputExt || !inputPasta || !grupos.length) {
+        return;
+    }
+
+    function aplicarFiltros() {
+        const filtroExt   = (inputExt.value   || "").trim().toLowerCase();
+        const filtroPasta = (inputPasta.value || "").trim().toLowerCase();
+
+        grupos.forEach(group => {
+            let linhasVisiveis = 0;
+            const linhas = group.querySelectorAll("tbody tr");
+
+            linhas.forEach(linha => {
+                const colPath = linha.querySelector(".col-path");
+                const colNome = linha.querySelector("td:first-child");
+
+                const pathText = (colPath ? colPath.textContent : "").toLowerCase();
+                const nomeText = (colNome ? colNome.textContent : "").toLowerCase();
+
+                let okExt   = true;
+                let okPasta = true;
+
+                // Filtro por extensão
+                if (filtroExt) {
+                    // permite digitar ".mp4" ou "mp4"
+                    const filtroComPonto = filtroExt.startsWith(".")
+                        ? filtroExt
+                        : "." + filtroExt;
+
+                    okExt = nomeText.includes(filtroComPonto) ||
+                            pathText.includes(filtroComPonto);
+                }
+
+                // Filtro por pasta (substring no caminho)
+                if (filtroPasta) {
+                    okPasta = pathText.includes(filtroPasta);
+                }
+
+                if (okExt && okPasta) {
+                    linha.style.display = "";
+                    linhasVisiveis++;
+                } else {
+                    linha.style.display = "none";
+                }
+            });
+
+            // Se nenhuma linha do grupo passou no filtro, esconde o grupo inteiro
+            group.style.display = linhasVisiveis > 0 ? "" : "none";
+        });
+    }
+
+    inputExt.addEventListener("input", aplicarFiltros);
+    inputPasta.addEventListener("input", aplicarFiltros);
+});
+</script>
+
+</body>
+</html>
