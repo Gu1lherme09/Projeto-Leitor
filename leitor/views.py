@@ -10,59 +10,39 @@ from django.shortcuts import render
 from django.shortcuts import render, redirect
 from django.contrib import messages
 
-from .Pasta import Pasta  # ajusta se o nome/pacote for outro
+from .Pasta import Pasta
+from .NoPasta import NoPasta
 from .ManipuladorPasta import ManipuladorPasta
 
 
-CACHE_PATH = os.path.join(settings.BASE_DIR, "Cache", "cache.json")
-
 def carregar_raiz_do_cache():
-    with open(CACHE_PATH, "r", encoding="utf-8") as f:
-        data = json.load(f)
-
-    estrutura = data.get("estrutura")
-    raiz = Pasta.from_dict(estrutura)  # recria árvore sem reler disco :contentReference[oaicite:1]{index=1}
-    return raiz, data
-
-
-def salvar_cache_atualizado(raiz, meta, extra_meta=None):
-    """
-    Atualiza o cache.json mantendo os metadados antigos
-    e escrevendo a estrutura atual (com hashes novos).
-    """
-    # copia tudo, menos a estrutura antiga
-    data = {k: v for k, v in meta.items() if k != "estrutura"}
-    data["estrutura"] = raiz.to_dict()
-    if extra_meta:
-        data.update(extra_meta)
-
-    with open(CACHE_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
-def carregar_raiz_do_cache():
-    """
-    Tenta carregar a raiz a partir do cache.json.
-    Se o arquivo não existir ou estiver inválido, retorna (None, None).
-    """
-    if not os.path.exists(CACHE_PATH):
-        # ainda não foi gerado cache
+    if not os.path.exists(settings.CACHE_PATH):
         return None, None
-
+    
     try:
-        with open(CACHE_PATH, "r", encoding="utf-8") as f:
+        with open(settings.CACHE_PATH, "r", encoding="utf-8") as f:
             data = json.load(f)
 
         estrutura = data.get("estrutura")
         if not estrutura:
-            # arquivo existe, mas não tem estrutura válida
             return None, data
 
         raiz = Pasta.from_dict(estrutura)
         return raiz, data
-
     except (json.JSONDecodeError, OSError, KeyError, TypeError):
-        # cache corrompido ou ilegível
         return None, None
+
+
+def salvar_cache_atualizado(data_to_save):
+    """
+    Salva o dicionário de dados completo no arquivo de cache.
+    """
+    # Garante que a pasta Cache exista
+    cache_dir = os.path.dirname(settings.CACHE_PATH)
+    os.makedirs(cache_dir, exist_ok=True)
+    
+    with open(settings.CACHE_PATH, "w", encoding="utf-8") as f:
+        json.dump(data_to_save, f, ensure_ascii=False, indent=2)
 
 
 def home(request):
@@ -195,11 +175,16 @@ def duplicados(request):
         # Recalcula MD5 de TODOS os arquivos que têm caminho válido
         for _, arq in arquivos:
             if arq.caminho_completo and os.path.exists(arq.caminho_completo):
-                arq._calcular_hash()  # Atualiza arq.hash_md5 :contentReference[oaicite:2]{index=2}
+                arq._calcular_hash()  # Atualiza arq.hash_md5
 
         hash_disponivel = True
-        # Salva de volta no cache, marcando que o hash foi calculado
-        salvar_cache_atualizado(raiz, meta, extra_meta={"hash_calculado": True})
+        # Atualiza o meta_antigo para ter o hash_calculado como True
+        meta["hash_calculado"] = True
+        # Salva de volta no cache, usando a função atualizada
+        data_to_save = meta.copy()
+        data_to_save["estrutura"] = raiz.to_dict()
+        salvar_cache_atualizado(data_to_save)
+
 
     # Se depois disso ainda não tiver hash, NÃO faz busca por duplicados
     if not hash_disponivel:
@@ -209,13 +194,13 @@ def duplicados(request):
             "espaco_duplicado_gb": 0,
             "grupos": [],
             "hash_disponivel": False,
+            "sem_cache": True,
         }
         return render(request, "abas/duplicados.html", contexto)
 
     # A partir daqui: já TEM hash no cache → agora sim monta os grupos
     tamanho_dict = defaultdict(list)
-
-    # Agrupa por tamanho, mas só arquivos com hash_md5 preenchido
+    
     for caminho_pasta, arquivo in arquivos:
         if (
             arquivo.caminho_completo
@@ -298,25 +283,158 @@ def nova_varredura(request):
         return redirect("home")
 
     scan_path = request.POST.get("scan_path")
-    calcular_hash = bool(request.POST.get("calcular_hash"))  # checkbox
+    calcular_hash = bool(request.POST.get("calcular_hash"))
 
-    # inicia o manipulador em modo "web" (sem input())
+    if not os.path.isdir(scan_path):
+        messages.error(request, f"O caminho '{scan_path}' não existe ou não é uma pasta.")
+        return redirect("home")
+
     m = ManipuladorPasta(scan_path, interativo=False)
-
-    # força recriar estrutura
     m.carregar_estrutura(forcar_recriacao=True, interativo=False)
 
-    # só calcula hash / duplicados se o usuário marcou a opção
+    data_to_save = {
+        "estrutura": m.raiz.to_dict(),
+        "data": datetime.now().strftime('%d_%m_%Y,%H:%M'),
+        "paths_varridos": [scan_path],
+    }
+
     if calcular_hash:
-        m.detectar_duplicatas()     # usa sua função atual
-        # importante: salvar o cache depois que os hashes estiverem preenchidos
-        m.salvar_cache(extra_meta={"hash_calculado": True})
+        m.detectar_duplicatas()
+        data_to_save["hash_calculado"] = True
     else:
-        m.salvar_cache(extra_meta={"hash_calculado": False})
+        data_to_save["hash_calculado"] = False
+    
+    salvar_cache_atualizado(data_to_save)
 
     messages.success(
         request,
         "Varredura concluída. Hash calculado." if calcular_hash
         else "Varredura concluída sem cálculo de hash."
     )
+    return redirect("home")
+
+
+def _replace_subtree(raiz, sub_arvore_nova):
+    """
+    Navega na árvore 'raiz' e substitui a sub-árvore que tem o mesmo 
+    caminho de 'sub_arvore_nova'.
+    Retorna True se a substituição foi feita.
+    """
+    if not raiz.caminho_completo or not sub_arvore_nova.caminho_completo.startswith(raiz.caminho_completo + os.sep):
+        return False
+
+    # Navega na lista encadeada de subpastas
+    atual = raiz.subpastas
+    while atual:
+        pasta_atual = atual.pasta
+        
+        # Se encontramos a subpasta exata para substituir
+        if pasta_atual.caminho_completo == sub_arvore_nova.caminho_completo:
+            atual.pasta = sub_arvore_nova
+            return True
+
+        # Se a subpasta que procuramos está DENTRO da pasta_atual, faz a recursão
+        if sub_arvore_nova.caminho_completo.startswith(pasta_atual.caminho_completo + os.sep):
+            if _replace_subtree(pasta_atual, sub_arvore_nova):
+                return True
+        
+        atual = atual.proximo
+        
+    return False
+
+
+def atualizar_cache(request):
+    if request.method != "POST":
+        return redirect("home")
+
+    scan_path = request.POST.get("scan_path")
+    calcular_hash = bool(request.POST.get("calcular_hash"))
+
+    if not os.path.isdir(scan_path):
+        messages.error(request, f"O caminho '{scan_path}' não existe ou não é uma pasta.")
+        return redirect("home")
+
+    raiz_antiga, meta_antigo = carregar_raiz_do_cache()
+    if raiz_antiga is None:
+        messages.error(request, "Nenhum cache encontrado para atualizar. Execute uma 'Nova varredura' primeiro.")
+        return redirect("home")
+
+    m_novo = ManipuladorPasta(scan_path, interativo=False)
+    m_novo.carregar_estrutura(forcar_recriacao=True, interativo=False)
+    raiz_nova = m_novo.raiz
+
+    if not raiz_nova or (not raiz_nova.arquivos and not raiz_nova.subpastas):
+        messages.info(request, f"Nenhum arquivo ou pasta encontrado em '{scan_path}'. O cache não foi alterado.")
+        return redirect("home")
+
+    # Coleta as raízes de varredura existentes
+    old_roots = []
+    if raiz_antiga.caminho_completo != "": # Não é virtual
+        old_roots.append(raiz_antiga)
+    else: # É virtual, coleta filhos
+        atual = raiz_antiga.subpastas
+        while atual:
+            old_roots.append(atual.pasta)
+            atual = atual.proximo
+
+    final_roots = []
+    raiz_nova_mesclada = False
+
+    # Normaliza o caminho da nova raiz para comparação robusta
+    norm_nova_path = os.path.normpath(raiz_nova.caminho_completo).lower()
+
+    # 1. Filtra raízes antigas que são filhas da nova varredura
+    for old_root in old_roots:
+        norm_old_path = os.path.normpath(old_root.caminho_completo).lower()
+        # Se o caminho antigo começar com o novo, ele é um filho e deve ser removido
+        if not norm_old_path.startswith(norm_nova_path + os.sep) and norm_old_path != norm_nova_path:
+            final_roots.append(old_root)
+
+    # 2. Tenta mesclar a nova varredura em uma das raízes restantes
+    for root in final_roots:
+        norm_root_path = os.path.normpath(root.caminho_completo).lower()
+        if norm_nova_path.startswith(norm_root_path + os.sep):
+            _replace_subtree(root, raiz_nova)
+            raiz_nova_mesclada = True
+            break
+    
+    # 3. Se não foi mesclada, é uma raiz nova ou pai
+    if not raiz_nova_mesclada:
+        final_roots.append(raiz_nova)
+
+    # 4. Reconstrói a raiz virtual com a lista final de raízes
+    raiz_final = Pasta(caminho="", ler_conteudo=False)
+    if final_roots:
+        # Cria a lista encadeada a partir da `final_roots`
+        head = NoPasta(final_roots[0])
+        atual = head
+        for i in range(1, len(final_roots)):
+            novo_no = NoPasta(final_roots[i])
+            atual.proximo = novo_no
+            atual = novo_no
+        raiz_final.subpastas = head
+
+    # === CÁLCULO DE HASH ===
+    # A `meta_antigo` já vem com "hash_calculado" e "data". Apenas atualizamos se necessário.
+    if calcular_hash:
+        todos_arquivos = raiz_final.coletar_arquivos()
+        for _, arq in todos_arquivos:
+            if arq.hash_md5 is None and arq.caminho_completo and os.path.exists(arq.caminho_completo):
+                arq._calcular_hash()
+        meta_antigo["hash_calculado"] = True
+    # else: manter o valor existente de meta_antigo["hash_calculado"]
+
+    # === SALVAR O CACHE MESCLADO ===
+    # Atualiza o timestamp do cache
+    meta_antigo["data"] = datetime.now().strftime('%d_%m_%Y,%H:%M')
+    
+    # Atualiza os caminhos varridos
+    meta_antigo["paths_varridos"] = [p.caminho_completo for p in final_roots]
+
+    data_to_save = meta_antigo.copy()
+    data_to_save["estrutura"] = raiz_final.to_dict()
+    
+    salvar_cache_atualizado(data_to_save)
+
+    messages.success(request, f"Cache hierarquicamente atualizado com os dados de '{scan_path}'.")
     return redirect("home")

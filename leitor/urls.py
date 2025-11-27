@@ -25,4 +25,5 @@ urlpatterns = [
     path('duplicados/', views.duplicados, name="duplicados"),
     path('pesquisar/', views.pesquisar, name="pesquisar"),
     path('nova_varredura', views.nova_varredura, name="nova_varredura"),
+    path('atualizar_cache', views.atualizar_cache, name="atualizar_cache"),
 ]

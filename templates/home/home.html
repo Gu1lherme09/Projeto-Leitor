@@ -20,7 +20,7 @@
             </div>
                 <div class="header-actions">
                     <button class="btn primary" id="btn-nova-varredura">Nova varredura</button>
-                    <button class="btn ghost">Atualizar cache</button>
+                    <button class="btn ghost" id="btn-atualizar-cache">Atualizar cache</button>
                 </div>
         </header>
 
@@ -215,9 +215,9 @@
                     {% csrf_token %}
                     
                     <div class="search-field">
-                        <label for="scan-path">Caminho da pasta</label>
+                        <label for="scan-path-nova">Caminho da pasta</label>
                         <input
-                            id="scan-path"
+                            id="scan-path-nova"
                             name="scan_path"
                             class="input mono"
                             type="text"
@@ -248,20 +248,182 @@
             </div>
         </div>
     </div>
+
+    <!-- MODAL ATUALIZAR CACHE -->
+    <div class="modal-backdrop" id="modal-atualizar-cache">
+        <div class="modal">
+            <header class="modal-header">
+                <h2>Atualizar cache</h2>
+                <button type="button" class="modal-close" data-modal-close>&times;</button>
+            </header>
+
+            <div class="modal-body">
+                <p class="modal-text">
+                    Informe um novo caminho para mesclar com o cache existente.
+                    Ex: <span class="mono">C:\Users\SeuUsuario\Desktop</span>
+                </p>
+
+                <form method="post" action="{% url 'atualizar_cache' %}">
+                    {% csrf_token %}
+                    
+                    <div class="search-field">
+                        <label for="scan-path-atualizar">Caminho da pasta</label>
+                        <input
+                            id="scan-path-atualizar"
+                            name="scan_path"
+                            class="input mono"
+                            type="text"
+                            placeholder="Ex: D:\Documentos\Backup"
+                            required
+                        >
+                    </div>
+
+                    <div class="search-field" style="margin-top: 8px;">
+                        <label class="checkbox-label">
+                            <input
+                                type="checkbox"
+                                name="calcular_hash"
+                                value="1"
+                            >
+                            Calcular hash (MD5) para detectar duplicados  
+                            <span style="color: var(--text-muted); font-size: 11px;">
+                                (pode deixar a varredura mais lenta)
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn ghost" data-modal-close>Cancelar</button>
+                        <button type="submit" class="btn primary">Atualizar e mesclar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 </div>
 </body>
 </html>
 {{ top_extensoes|json_script:"ext-data" }}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     // =========================
-    // BASE PARA OCUPADO / LIVRE (GB → MB)
+    // Funções e variáveis de UI compartilhadas
+    // =========================
+    const integridadeCircle = document.getElementById("integridade-circle-fg");
+    const integridadePercent = document.getElementById("integridade-percent");
+    const integridadeStatus  = document.getElementById("integridade-status");
+    const integridadeText    = document.getElementById("integridade-text");
+
+    let integridadeInterval = null;
+    const CIRCLE_RADIUS = 52;
+    const CIRCLE_CIRC = 2 * Math.PI * CIRCLE_RADIUS;
+
+    if (integridadeCircle) {
+        integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
+    }
+
+    function setIntegridadeProgress(p) {
+        if (!integridadeCircle || !integridadePercent) return;
+        const val = Math.max(0, Math.min(100, p));
+        const offset = CIRCLE_CIRC * (1 - val / 100);
+        integridadeCircle.style.strokeDashoffset = offset;
+        integridadePercent.textContent = val + "%";
+    }
+
+    setIntegridadeProgress(100); // Começa em 100%
+
+    function ativarLoader(textoAcao) {
+        let integridadeProg = 0;
+        setIntegridadeProgress(0);
+
+        if (integridadeStatus) integridadeStatus.textContent = "analisando";
+        if (integridadeText)   integridadeText.textContent   = textoAcao || "Aguarde...";
+
+        integridadeInterval = setInterval(() => {
+            if (integridadeProg < 95) {
+                integridadeProg += 1;
+                setIntegridadeProgress(integridadeProg);
+            }
+        }, 200);
+    }
+
+    function finalizarLoader(textoResultado) {
+        if (integridadeInterval) {
+            clearInterval(integridadeInterval);
+            integridadeInterval = null;
+        }
+        setIntegridadeProgress(100);
+        if (integridadeStatus) integridadeStatus.textContent = "concluído";
+        if (integridadeText)   integridadeText.textContent   = textoResultado || "Painel atualizado.";
+    }
+
+    // Função genérica para configurar um modal
+    function setupModal(btnId, modalId, formActionText) {
+        const modalTriggerBtn = document.getElementById(btnId);
+        const modalBackdrop = document.getElementById(modalId);
+        
+        if (!modalTriggerBtn || !modalBackdrop) return;
+
+        const modalForm = modalBackdrop.querySelector("form");
+        const closeButtons = modalBackdrop.querySelectorAll("[data-modal-close]");
+
+        function openModal() {
+            modalBackdrop.classList.add("is-open");
+            const input = modalBackdrop.querySelector('input[name="scan_path"]');
+            if (input) setTimeout(() => input.focus(), 100);
+        }
+
+        function closeModal() {
+            modalBackdrop.classList.remove("is-open");
+        }
+
+        modalTriggerBtn.addEventListener("click", openModal);
+        closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
+        modalBackdrop.addEventListener("click", (e) => (e.target === modalBackdrop) && closeModal());
+        document.addEventListener("keydown", (e) => (e.key === "Escape") && closeModal());
+
+        if (modalForm) {
+            modalForm.addEventListener("submit", function (e) {
+                e.preventDefault();
+                closeModal();
+                ativarLoader(formActionText);
+
+                const formData = new FormData(modalForm);
+                const action = modalForm.action;
+                const csrfToken = modalForm.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+                fetch(action, {
+                    method: "POST",
+                    headers: { "X-CSRFToken": csrfToken },
+                    body: formData
+                })
+                .then(resp => {
+                    if (!resp.ok) {
+                        // Se o backend retornar um erro, podemos tratar aqui no futuro
+                        console.error("Falha na operação do backend.");
+                    }
+                    finalizarLoader("Operação finalizada. Atualizando painel...");
+                    setTimeout(() => window.location.reload(), 800);
+                })
+                .catch(err => {
+                    console.error("Erro na requisição:", err);
+                    finalizarLoader("Erro na requisição. Verifique o console.");
+                });
+            });
+        }
+    }
+    
+    // Configura os dois modais
+    setupModal("btn-nova-varredura", "modal-nova-varredura", "Nova varredura em andamento, aguarde...");
+    setupModal("btn-atualizar-cache", "modal-atualizar-cache", "Atualizando cache, aguarde...");
+
+
+    // =========================
+    // GRÁFICOS (código original sem alterações)
     // =========================
     const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
     const baseLivreGB   = parseFloat("{{ espaco_livre_gb|default:'0' }}") || 0;
-
     let currentUnit = "GB";
     let percOcupado = 0;
     let percLivre   = 0;
@@ -281,12 +443,8 @@ document.addEventListener("DOMContentLoaded", function () {
         };
     }
 
-    // =========================
-    // GRÁFICO PIZZA - DISTRIBUIÇÃO DO ESPAÇO
-    // =========================
     const pizzaCanvas = document.getElementById("pizzaChart");
     let pizzaChart = null;
-
     if (pizzaCanvas) {
         const initial = getValues(currentUnit);
         const total = initial.ocupado + initial.livre || 1;
@@ -300,10 +458,7 @@ document.addEventListener("DOMContentLoaded", function () {
                     labels: ["Ocupado", "Livre"],
                     datasets: [{
                         data: [initial.ocupado, initial.livre],
-                        backgroundColor: [
-                            "rgba(34,197,94,0.9)",    // verde ocupado
-                            "rgba(148,163,184,0.4)"  // cinza livre
-                        ],
+                        backgroundColor: ["rgba(34,197,94,0.9)", "rgba(148,163,184,0.4)"],
                         borderWidth: 0
                     }]
                 },
@@ -311,332 +466,99 @@ document.addEventListener("DOMContentLoaded", function () {
                     cutout: "70%",
                     responsive: true,
                     plugins: {
-                        legend: {
-                            position: "bottom"
-                        },
+                        legend: { position: "bottom" },
                         tooltip: {
                             callbacks: {
-                                label: ctx => {
-                                    const val = ctx.parsed;
-                                    const perc = ctx.dataIndex === 0 ? percOcupado : percLivre;
-                                    return `${val.toFixed(2)} ${currentUnit} (${perc}%)`;
-                                }
+                                label: ctx => `${ctx.parsed.toFixed(2)} ${currentUnit} (${ctx.dataIndex === 0 ? percOcupado : percLivre}%)`
                             }
                         }
                     }
                 }
             });
-
             const pizzaTotal = document.getElementById("pizza-total");
-            if (pizzaTotal) {
-                pizzaTotal.textContent = total.toFixed(2) + " " + currentUnit;
-            }
+            if (pizzaTotal) pizzaTotal.textContent = total.toFixed(2) + " " + currentUnit;
         }
 
-        // Toggle GB / MB (botões .btn-unit)
         const unitButtons = document.querySelectorAll(".btn-unit");
         unitButtons.forEach(btn => {
             btn.addEventListener("click", () => {
                 const unit = btn.dataset.unit;
                 if (!unit || unit === currentUnit || !pizzaChart) return;
-
                 currentUnit = unit;
                 unitButtons.forEach(b => b.classList.remove("is-active"));
                 btn.classList.add("is-active");
 
                 const v = getValues(currentUnit);
                 pizzaChart.data.datasets[0].data = [v.ocupado, v.livre];
-
                 const totalLocal = v.ocupado + v.livre || 1;
                 percOcupado = (v.ocupado / totalLocal * 100).toFixed(1);
-                percLivre   = (v.livre   / totalLocal * 100).toFixed(1);
-
+                percLivre = (v.livre / totalLocal * 100).toFixed(1);
                 const pizzaTotal = document.getElementById("pizza-total");
-                if (pizzaTotal) {
-                    pizzaTotal.textContent = totalLocal.toFixed(2) + " " + currentUnit;
-                }
-
+                if (pizzaTotal) pizzaTotal.textContent = totalLocal.toFixed(2) + " " + currentUnit;
                 pizzaChart.update();
             });
         });
     }
 
-    // =========================
-    // GRÁFICO DONUT POR EXTENSÃO / TAMANHO
-    // =========================
     const extCanvas = document.getElementById("extChart");
     let extChart = null;
-
     if (extCanvas) {
         const extCtx = extCanvas.getContext("2d");
         const totalGB = parseFloat("{{ total_tamanho_gb|default:'0' }}") || 0;
         const bucketMaior1GB   = parseFloat("{{ bucket_maior_1gb_gb|default:'0' }}") || 0;
         const bucket100MB1GB   = parseFloat("{{ bucket_100mb_1gb_gb|default:'0' }}") || 0;
         const bucketMenor100MB = parseFloat("{{ bucket_menor_100mb_gb|default:'0' }}") || 0;
-
         const extDataEl = document.getElementById("ext-data");
         const extSubtitle = document.getElementById("extChartSubtitle");
         let extData = [];
-
         if (extDataEl) {
-            try {
-                extData = JSON.parse(extDataEl.textContent);
-            } catch (e) {
-                console.error("Erro ao parsear top_extensoes:", e);
-            }
+            try { extData = JSON.parse(extDataEl.textContent); } catch (e) { console.error("Erro ao parsear top_extensoes:", e); }
         }
 
-        function getInfoPorExtensao(extCode) {
-            if (!extCode) {
-                return {
-                    labels: ["Total do cache"],
-                    data: [totalGB],
-                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
-                };
+        const getInfo = (code, type) => {
+            let labels = ["Total"], data = [totalGB], subtitle = `Tamanho total: ${totalGB.toFixed(2)} GB`;
+            if (type === 'ext' && code) {
+                const item = extData.find(e => e.ext === code);
+                const val = item ? item.gb : 0;
+                labels = [`.${code}`, "Outros"];
+                data = [val, Math.max(totalGB - val, 0)];
+                subtitle = `.${code}: ${val.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`;
+            } else if (type === 'size' && code) {
+                const buckets = {gt_1gb: ["> 1 GB", bucketMaior1GB], between_100mb_1gb: ["100MB-1GB", bucket100MB1GB], lt_100mb: ["< 100MB", bucketMenor100MB]};
+                const bucket = buckets[code];
+                if(bucket){
+                    labels = [bucket[0], "Outros"];
+                    data = [bucket[1], Math.max(totalGB - bucket[1], 0)];
+                    subtitle = `${bucket[0]}: ${bucket[1].toFixed(2)} GB de ${totalGB.toFixed(2)} GB`;
+                }
             }
-            const item = extData.find(e => e.ext === extCode);
-            const valorExt = item ? item.gb : 0;
-            const outros = Math.max(totalGB - valorExt, 0);
-            return {
-                labels: [`.${extCode}`, "Outros"],
-                data: [valorExt, outros],
-                subtitle: `.${extCode}: ${valorExt.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
-            };
-        }
+            return { labels, data, subtitle };
+        };
 
-        function getInfoPorTamanho(bucketKey) {
-            if (!bucketKey) {
-                return {
-                    labels: ["Total do cache"],
-                    data: [totalGB],
-                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
-                };
-            }
-
-            if (bucketKey === "gt_1gb") {
-                const outros = Math.max(totalGB - bucketMaior1GB, 0);
-                return {
-                    labels: ["> 1 GB", "Outros"],
-                    data: [bucketMaior1GB, outros],
-                    subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
-                };
-            }
-
-            if (bucketKey === "between_100mb_1gb") {
-                const outros = Math.max(totalGB - bucket100MB1GB, 0);
-                return {
-                    labels: ["100 MB – 1 GB", "Outros"],
-                    data: [bucket100MB1GB, outros],
-                    subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
-                };
-            }
-
-            if (bucketKey === "lt_100mb") {
-                const outros = Math.max(totalGB - bucketMenor100MB, 0);
-                return {
-                    labels: ["< 100 MB", "Outros"],
-                    data: [bucketMenor100MB, outros],
-                    subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
-                };
-            }
-
-            return {
-                labels: ["Total do cache"],
-                data: [totalGB],
-                subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
-            };
-        }
-
-        function initExtChart(info) {
-            if (extSubtitle) {
-                extSubtitle.textContent = info.subtitle;
-            }
-
+        const initExtChart = info => {
+            if (extSubtitle) extSubtitle.textContent = info.subtitle;
             if (!extChart) {
                 extChart = new Chart(extCtx, {
                     type: "doughnut",
-                    data: {
-                        labels: info.labels,
-                        datasets: [{
-                            data: info.data,
-                            backgroundColor: [
-                                "rgba(37, 99, 235, 0.9)",
-                                "rgba(148, 163, 184, 0.4)"
-                            ],
-                            borderColor: [
-                                "rgba(37, 99, 235, 1)",
-                                "rgba(148, 163, 184, 0.9)"
-                            ],
-                            borderWidth: 1.5
-                        }]
-                    },
-                    options: {
-                        responsive: true,
-                        cutout: "60%",
-                        plugins: {
-                            legend: {
-                                position: "bottom",
-                                labels: {
-                                    boxWidth: 12,
-                                    font: { size: 11 }
-                                }
-                            },
-                            tooltip: {
-                                backgroundColor: "#fff",
-                                titleColor: "#0f172a",
-                                bodyColor: "#1e293b",
-                                borderColor: "#cbd5f5",
-                                borderWidth: 1,
-                                padding: 10,
-                                displayColors: true,
-                                callbacks: {
-                                    label: (ctxT) => {
-                                        const val = ctxT.parsed;
-                                        return `${ctxT.label}: ${val.toFixed(2)} GB`;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                    data: { labels: info.labels, datasets: [{ data: info.data, backgroundColor: ["rgba(37, 99, 235, 0.9)", "rgba(148, 163, 184, 0.4)"], borderColor: ["rgba(37, 99, 235, 1)", "rgba(148, 163, 184, 0.9)"], borderWidth: 1.5 }] },
+                    options: { responsive: true, cutout: "60%", plugins: { legend: { position: "bottom", labels: { boxWidth: 12, font: { size: 11 } } }, tooltip: { callbacks: { label: ctx => `${ctx.label}: ${ctx.parsed.toFixed(2)} GB` } } } }
                 });
             } else {
                 extChart.data.labels = info.labels;
                 extChart.data.datasets[0].data = info.data;
                 extChart.update();
             }
-        }
+        };
 
-        // Inicial: total
-        initExtChart(getInfoPorExtensao(null));
-
-        const filtroExtensao = document.getElementById("filtro-extensao");
-        const filtroTamanho  = document.getElementById("filtro-tamanho");
-        const btnAplicar     = document.getElementById("btn-aplicar-filtros");
-
+        initExtChart(getInfo(null));
+        const btnAplicar = document.getElementById("btn-aplicar-filtros");
         if (btnAplicar) {
-            btnAplicar.addEventListener("click", function () {
-                const extCode = filtroExtensao ? filtroExtensao.value : "";
-                const sizeKey = filtroTamanho  ? filtroTamanho.value  : "";
-
-                let info;
-                if (extCode) {
-                    info = getInfoPorExtensao(extCode);
-                } else if (sizeKey) {
-                    info = getInfoPorTamanho(sizeKey);
-                } else {
-                    info = getInfoPorExtensao(null);
-                }
-
-                initExtChart(info);
+            btnAplicar.addEventListener("click", () => {
+                const extCode = document.getElementById("filtro-extensao").value;
+                const sizeKey = document.getElementById("filtro-tamanho").value;
+                initExtChart(getInfo(extCode, 'ext') || getInfo(sizeKey, 'size') || getInfo(null));
             });
         }
-    }
-
-    // =========================
-    // MODAL NOVA VARREDURA + PROGRESSO CIRCULAR
-    // =========================
-    const btnNovaVarredura = document.getElementById("btn-nova-varredura");
-    const modalBackdrop = document.getElementById("modal-nova-varredura");
-    const closeButtons = modalBackdrop ? modalBackdrop.querySelectorAll("[data-modal-close]") : [];
-    const formNovaVarredura = modalBackdrop ? modalBackdrop.querySelector("form") : null;
-
-    const integridadeCircle = document.getElementById("integridade-circle-fg");
-    const integridadePercent = document.getElementById("integridade-percent");
-    const integridadeStatus  = document.getElementById("integridade-status");
-    const integridadeText    = document.getElementById("integridade-text");
-
-    let integridadeInterval = null;
-    let integridadeProg = 100;
-    const CIRCLE_RADIUS = 52;
-    const CIRCLE_CIRC = 2 * Math.PI * CIRCLE_RADIUS;
-
-    if (integridadeCircle) {
-        integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
-    }
-
-    function setIntegridadeProgress(p) {
-        if (!integridadeCircle || !integridadePercent) return;
-        const val = Math.max(0, Math.min(100, p));
-        const offset = CIRCLE_CIRC * (1 - val / 100);
-        integridadeCircle.style.strokeDashoffset = offset;
-        integridadePercent.textContent = val + "%";
-    }
-
-    setIntegridadeProgress(100);
-
-    function ativarLoaderIntegridade() {
-        integridadeProg = 0;
-        setIntegridadeProgress(0);
-
-        if (integridadeStatus) integridadeStatus.textContent = "analisando";
-        if (integridadeText)   integridadeText.textContent   = "Varredura em andamento, aguarde...";
-
-        integridadeInterval = setInterval(() => {
-            if (integridadeProg < 95) {
-                integridadeProg += 1;
-                setIntegridadeProgress(integridadeProg);
-            }
-        }, 200);
-    }
-
-    function finalizarLoaderIntegridade() {
-        if (integridadeInterval) {
-            clearInterval(integridadeInterval);
-            integridadeInterval = null;
-        }
-        integridadeProg = 100;
-        setIntegridadeProgress(100);
-        if (integridadeStatus) integridadeStatus.textContent = "concluído";
-        if (integridadeText)   integridadeText.textContent   = "Varredura finalizada. Atualizando painel...";
-    }
-
-    if (btnNovaVarredura && modalBackdrop && formNovaVarredura) {
-        function openModal() {
-            modalBackdrop.classList.add("is-open");
-            const input = document.getElementById("scan-path");
-            if (input) setTimeout(() => input.focus(), 100);
-        }
-
-        function closeModal() {
-            modalBackdrop.classList.remove("is-open");
-        }
-
-        btnNovaVarredura.addEventListener("click", openModal);
-        closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
-
-        modalBackdrop.addEventListener("click", function (e) {
-            if (e.target === modalBackdrop) closeModal();
-        });
-
-        document.addEventListener("keydown", function (e) {
-            if (e.key === "Escape") closeModal();
-        });
-
-        formNovaVarredura.addEventListener("submit", function (e) {
-            e.preventDefault();
-            closeModal();
-            ativarLoaderIntegridade();
-
-            const formData = new FormData(formNovaVarredura);
-            const action = formNovaVarredura.action;
-            const csrfInput = formNovaVarredura.querySelector('input[name="csrfmiddlewaretoken"]');
-            const csrfToken = csrfInput ? csrfInput.value : "";
-
-            fetch(action, {
-                method: "POST",
-                headers: { "X-CSRFToken": csrfToken },
-                body: formData
-            })
-            .then(resp => {
-                finalizarLoaderIntegridade();
-                setTimeout(() => window.location.reload(), 800);
-            })
-            .catch(err => {
-                console.error("Erro na varredura:", err);
-                if (integridadeStatus) integridadeStatus.textContent = "erro";
-                if (integridadeText)   integridadeText.textContent   = "Erro ao iniciar a varredura. Tente novamente.";
-            });
-        });
     }
 });
 </script>

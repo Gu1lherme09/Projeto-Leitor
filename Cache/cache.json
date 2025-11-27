@@ -1,96 +1,80 @@
 {
-    "data": "16_11_2025,20:53",
-    "estrutura": {
-        "nome": "Arq",
-        "caminho_completo": "./Arq",
+  "estrutura": {
+    "nome": "",
+    "caminho_completo": "",
+    "arquivos": [],
+    "subpastas": [
+      {
+        "nome": "test2",
+        "caminho_completo": "C:\\test2",
         "arquivos": [
-            {
-                "nome": "Novo",
-                "extensao": "docx",
-                "tamanho": 1,
-                "hash_md5": null,
-                "caminho_completo": "./Arq\\Novo.docx"
-            },
-            {
-                "nome": "Teste",
-                "extensao": "txt",
-                "tamanho": 10,
-                "hash_md5": null,
-                "caminho_completo": "./Arq\\Teste.txt"
-            }
+          {
+            "nome": "teste2",
+            "extensao": "txt",
+            "tamanho": 0,
+            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "caminho_completo": "C:\\test2\\teste2.txt"
+          }
         ],
         "subpastas": [
-            {
+          {
+            "nome": "novo",
+            "caminho_completo": "C:\\test2\\novo",
+            "arquivos": [
+              {
                 "nome": "novo",
-                "caminho_completo": "./Arq\\novo",
-                "arquivos": [],
-                "subpastas": [
-                    {
-                        "nome": "Teste",
-                        "caminho_completo": "./Arq\\novo\\Teste",
-                        "arquivos": [
-                            {
-                                "nome": "Pasta2",
-                                "extensao": "docx",
-                                "tamanho": 2,
-                                "hash_md5": null,
-                                "caminho_completo": "./Arq\\novo\\Teste\\Pasta2.docx"
-                            },
-                            {
-                                "nome": "Ter2",
-                                "extensao": "xlsx",
-                                "tamanho": 6310,
-                                "hash_md5": null,
-                                "caminho_completo": "./Arq\\novo\\Teste\\Ter2.xlsx"
-                            }
-                        ],
-                        "subpastas": [
-                            {
-                                "nome": "Pasta3",
-                                "caminho_completo": "./Arq\\novo\\Teste\\Pasta3",
-                                "arquivos": [
-                                    {
-                                        "nome": "GioGLhqXoAAute4",
-                                        "extensao": "jpg",
-                                        "tamanho": 24591,
-                                        "hash_md5": null,
-                                        "caminho_completo": "./Arq\\novo\\Teste\\Pasta3\\GioGLhqXoAAute4.jpg"
-                                    },
-                                    {
-                                        "nome": "Teste",
-                                        "extensao": "txt",
-                                        "tamanho": 10,
-                                        "hash_md5": null,
-                                        "caminho_completo": "./Arq\\novo\\Teste\\Pasta3\\Teste.txt"
-                                    }
-                                ],
-                                "subpastas": []
-                            }
-                        ]
-                    },
-                    {
-                        "nome": "Teste2",
-                        "caminho_completo": "./Arq\\novo\\Teste2",
-                        "arquivos": [
-                            {
-                                "nome": "GioGLhqXoAAute4",
-                                "extensao": "jpg",
-                                "tamanho": 24591,
-                                "hash_md5": null,
-                                "caminho_completo": "./Arq\\novo\\Teste2\\GioGLhqXoAAute4.jpg"
-                            },
-                            {
-                                "nome": "Teste",
-                                "extensao": "docx",
-                                "tamanho": 1,
-                                "hash_md5": null,
-                                "caminho_completo": "./Arq\\novo\\Teste2\\Teste.docx"
-                            }
-                        ],
-                        "subpastas": []
-                    }
-                ]
-            }
+                "extensao": "txt",
+                "tamanho": 0,
+                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                "caminho_completo": "C:\\test2\\novo\\novo.txt"
+              },
+              {
+                "nome": "teste2",
+                "extensao": "txt",
+                "tamanho": 0,
+                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                "caminho_completo": "C:\\test2\\novo\\teste2.txt"
+              }
+            ],
+            "subpastas": []
+          }
         ]
-    }
+      },
+      {
+        "nome": "teste",
+        "caminho_completo": "C:\\teste",
+        "arquivos": [
+          {
+            "nome": "teste2",
+            "extensao": "docx",
+            "tamanho": 0,
+            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "caminho_completo": "C:\\teste\\teste2.docx"
+          }
+        ],
+        "subpastas": [
+          {
+            "nome": "teste2",
+            "caminho_completo": "C:\\teste\\teste2",
+            "arquivos": [
+              {
+                "nome": "teste",
+                "extensao": "docx",
+                "tamanho": 0,
+                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                "caminho_completo": "C:\\teste\\teste2\\teste.docx"
+              }
+            ],
+            "subpastas": []
+          }
+        ]
+      }
+    ]
+  },
+  "data": "26_11_2025,21:47",
+  "paths_varridos": [
+    "C:\\test2",
+    "C:\\teste"
+  ],
+  "hash_calculado": true
 }

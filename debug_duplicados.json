@@ -1,0 +1,146 @@
+{
+  "1_arquivos_coletados": [
+    {
+      "caminho_pasta": "C:\\User_manual",
+      "arquivo": {
+        "nome": "User_manual_portuguese_Brazil",
+        "extensao": "pdf",
+        "tamanho": 1834446,
+        "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
+        "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf"
+      }
+    },
+    {
+      "caminho_pasta": "C:\\User_manual",
+      "arquivo": {
+        "nome": "User_manual_spanish_Latin",
+        "extensao": "pdf",
+        "tamanho": 1762531,
+        "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
+        "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf"
+      }
+    },
+    {
+      "caminho_pasta": "C:\\test2",
+      "arquivo": {
+        "nome": "teste2",
+        "extensao": "txt",
+        "tamanho": 0,
+        "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+        "caminho_completo": "C:\\test2\\teste2.txt"
+      }
+    },
+    {
+      "caminho_pasta": "C:\\test2\\novo",
+      "arquivo": {
+        "nome": "novo",
+        "extensao": "txt",
+        "tamanho": 0,
+        "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+        "caminho_completo": "C:\\test2\\novo\\novo.txt"
+      }
+    },
+    {
+      "caminho_pasta": "C:\\test2\\novo",
+      "arquivo": {
+        "nome": "teste2",
+        "extensao": "txt",
+        "tamanho": 0,
+        "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+        "caminho_completo": "C:\\test2\\novo\\teste2.txt"
+      }
+    }
+  ],
+  "2_tamanho_dict": {
+    "1834446": [
+      [
+        "C:\\User_manual",
+        {
+          "nome": "User_manual_portuguese_Brazil",
+          "extensao": "pdf",
+          "tamanho": 1834446,
+          "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
+          "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf"
+        }
+      ]
+    ],
+    "1762531": [
+      [
+        "C:\\User_manual",
+        {
+          "nome": "User_manual_spanish_Latin",
+          "extensao": "pdf",
+          "tamanho": 1762531,
+          "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
+          "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf"
+        }
+      ]
+    ],
+    "0": [
+      [
+        "C:\\test2",
+        {
+          "nome": "teste2",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\teste2.txt"
+        }
+      ],
+      [
+        "C:\\test2\\novo",
+        {
+          "nome": "novo",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\novo\\novo.txt"
+        }
+      ],
+      [
+        "C:\\test2\\novo",
+        {
+          "nome": "teste2",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\novo\\teste2.txt"
+        }
+      ]
+    ]
+  },
+  "3_hash_dict_tamanho_0": {
+    "d41d8cd98f00b204e9800998ecf8427e": [
+      [
+        "C:\\test2",
+        {
+          "nome": "teste2",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\teste2.txt"
+        }
+      ],
+      [
+        "C:\\test2\\novo",
+        {
+          "nome": "novo",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\novo\\novo.txt"
+        }
+      ],
+      [
+        "C:\\test2\\novo",
+        {
+          "nome": "teste2",
+          "extensao": "txt",
+          "tamanho": 0,
+          "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+          "caminho_completo": "C:\\test2\\novo\\teste2.txt"
+        }
+      ]
+    ]
+  }
+}
