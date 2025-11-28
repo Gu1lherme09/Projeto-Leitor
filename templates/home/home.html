@@ -310,6 +310,7 @@ document.addEventListener("DOMContentLoaded", function () {
     // =========================
     // Funções e variáveis de UI compartilhadas
     // =========================
+    // Elementos do painel de "Carregamento" que usamos para dar feedback visual.
     const integridadeCircle = document.getElementById("integridade-circle-fg");
     const integridadePercent = document.getElementById("integridade-percent");
     const integridadeStatus  = document.getElementById("integridade-status");
@@ -323,6 +324,7 @@ document.addEventListener("DOMContentLoaded", function () {
         integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
     }
 
+    // Atualiza o círculo de progresso para um percentual específico.
     function setIntegridadeProgress(p) {
         if (!integridadeCircle || !integridadePercent) return;
         const val = Math.max(0, Math.min(100, p));
@@ -331,8 +333,9 @@ document.addEventListener("DOMContentLoaded", function () {
         integridadePercent.textContent = val + "%";
     }
 
-    setIntegridadeProgress(100); // Começa em 100%
+    setIntegridadeProgress(100); // Garante que o estado inicial seja de 'concluído'.
 
+    // Inicia a animação de carregamento e exibe uma mensagem de ação.
     function ativarLoader(textoAcao) {
         let integridadeProg = 0;
         setIntegridadeProgress(0);
@@ -340,6 +343,7 @@ document.addEventListener("DOMContentLoaded", function () {
         if (integridadeStatus) integridadeStatus.textContent = "analisando";
         if (integridadeText)   integridadeText.textContent   = textoAcao || "Aguarde...";
 
+        // Simula um progresso para o usuário não achar que travou.
         integridadeInterval = setInterval(() => {
             if (integridadeProg < 95) {
                 integridadeProg += 1;
@@ -348,6 +352,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }, 200);
     }
 
+    // Para a animação de carregamento e exibe o resultado.
     function finalizarLoader(textoResultado) {
         if (integridadeInterval) {
             clearInterval(integridadeInterval);
@@ -358,14 +363,13 @@ document.addEventListener("DOMContentLoaded", function () {
         if (integridadeText)   integridadeText.textContent   = textoResultado || "Painel atualizado.";
     }
 
-    // Função genérica para configurar um modal
-    function setupModal(btnId, modalId, formActionText) {
+    // Função genérica para controlar a abertura e fechamento de qualquer modal.
+    function setupModal(btnId, modalId) {
         const modalTriggerBtn = document.getElementById(btnId);
         const modalBackdrop = document.getElementById(modalId);
         
         if (!modalTriggerBtn || !modalBackdrop) return;
 
-        const modalForm = modalBackdrop.querySelector("form");
         const closeButtons = modalBackdrop.querySelectorAll("[data-modal-close]");
 
         function openModal() {
@@ -382,46 +386,67 @@ document.addEventListener("DOMContentLoaded", function () {
         closeButtons.forEach(btn => btn.addEventListener("click", closeModal));
         modalBackdrop.addEventListener("click", (e) => (e.target === modalBackdrop) && closeModal());
         document.addEventListener("keydown", (e) => (e.key === "Escape") && closeModal());
-
-        if (modalForm) {
-            modalForm.addEventListener("submit", function (e) {
-                e.preventDefault();
-                closeModal();
-                ativarLoader(formActionText);
-
-                const formData = new FormData(modalForm);
-                const action = modalForm.action;
-                const csrfToken = modalForm.querySelector('input[name="csrfmiddlewaretoken"]').value;
-
-                fetch(action, {
-                    method: "POST",
-                    headers: { "X-CSRFToken": csrfToken },
-                    body: formData
-                })
-                .then(resp => {
-                    if (!resp.ok) {
-                        // Se o backend retornar um erro, podemos tratar aqui no futuro
-                        console.error("Falha na operação do backend.");
-                    }
-                    finalizarLoader("Operação finalizada. Atualizando painel...");
-                    setTimeout(() => window.location.reload(), 800);
-                })
-                .catch(err => {
-                    console.error("Erro na requisição:", err);
-                    finalizarLoader("Erro na requisição. Verifique o console.");
-                });
-            });
-        }
     }
-    
-    // Configura os dois modais
-    setupModal("btn-nova-varredura", "modal-nova-varredura", "Nova varredura em andamento, aguarde...");
-    setupModal("btn-atualizar-cache", "modal-atualizar-cache", "Atualizando cache, aguarde...");
+
+    // Handler de submissão de formulário que usa Fetch API para evitar recarregamento da página.
+    // Isso permite que a animação do loader funcione corretamente.
+    function handleScanFormSubmit(form, loadingText) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault(); // Previne o submit tradicional que recarrega a página.
+            
+            // Fecha o modal e ativa o loader.
+            const modalId = form.closest('.modal-backdrop').id;
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.classList.remove('is-open');
+            }
+            ativarLoader(loadingText);
+
+            const formData = new FormData(form);
+            const action = form.action;
+            const csrfToken = form.querySelector('input[name="csrfmiddlewaretoken"]').value;
+
+            // Envia os dados do formulário para o backend em segundo plano.
+            fetch(action, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrfToken },
+                body: formData
+            })
+            .then(resp => {
+                if (!resp.ok) {
+                    // Em caso de erro no backend, exibe no loader e não recarrega.
+                    console.error("Falha na operação do backend. Status: " + resp.status);
+                    finalizarLoader("Falha na operação. Verifique o console.");
+                    return; 
+                }
+                // Se deu certo, finaliza o loader e recarrega a página para ver o resultado.
+                finalizarLoader("Operação finalizada. Atualizando painel...");
+                setTimeout(() => window.location.reload(), 800);
+            })
+            .catch(err => {
+                console.error("Erro na requisição:", err);
+                finalizarLoader("Erro na requisição. Verifique o console.");
+            });
+        });
+    }
+
+    // --- INICIALIZAÇÃO ---
+    // Atribui os comportamentos de abrir e fechar aos modais.
+    setupModal("btn-nova-varredura", "modal-nova-varredura");
+    setupModal("btn-atualizar-cache", "modal-atualizar-cache");
+
+    // Seleciona os formulários e atribui a eles a lógica de submissão com Fetch.
+    const formNovaVarredura = document.querySelector("#modal-nova-varredura form");
+    const formAtualizarCache = document.querySelector("#modal-atualizar-cache form");
+
+    if (formNovaVarredura) {
+        handleScanFormSubmit(formNovaVarredura, "Nova varredura em andamento, aguarde...");
+    }
+    if (formAtualizarCache) {
+        handleScanFormSubmit(formAtualizarCache, "Atualizando cache, aguarde...");
+    }
 
 
-    // =========================
-    // GRÁFICOS (código original sem alterações)
-    // =========================
     const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
     const baseLivreGB   = parseFloat("{{ espaco_livre_gb|default:'0' }}") || 0;
     let currentUnit = "GB";

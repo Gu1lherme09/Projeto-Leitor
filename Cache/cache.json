@@ -1,80 +1,54 @@
 {
+  "data": "27_11_2025,22:33",
   "estrutura": {
-    "nome": "",
-    "caminho_completo": "",
-    "arquivos": [],
-    "subpastas": [
+    "nome": "User_manual",
+    "caminho_completo": "C:\\User_manual",
+    "arquivos": [
       {
-        "nome": "test2",
-        "caminho_completo": "C:\\test2",
-        "arquivos": [
-          {
-            "nome": "teste2",
-            "extensao": "txt",
-            "tamanho": 0,
-            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
-            "caminho_completo": "C:\\test2\\teste2.txt"
-          }
-        ],
-        "subpastas": [
-          {
-            "nome": "novo",
-            "caminho_completo": "C:\\test2\\novo",
-            "arquivos": [
-              {
-                "nome": "novo",
-                "extensao": "txt",
-                "tamanho": 0,
-                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
-                "caminho_completo": "C:\\test2\\novo\\novo.txt"
-              },
-              {
-                "nome": "teste2",
-                "extensao": "txt",
-                "tamanho": 0,
-                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
-                "caminho_completo": "C:\\test2\\novo\\teste2.txt"
-              }
-            ],
-            "subpastas": []
-          }
-        ]
+        "nome": "User_manual_portuguese_Brazil",
+        "extensao": "pdf",
+        "tamanho": 1834446,
+        "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
+        "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf",
+        "status": "presente"
       },
       {
-        "nome": "teste",
-        "caminho_completo": "C:\\teste",
+        "nome": "User_manual_spanish_Latin",
+        "extensao": "pdf",
+        "tamanho": 1762531,
+        "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
+        "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf",
+        "status": "presente"
+      }
+    ],
+    "subpastas": [
+      {
+        "nome": "User_manual",
+        "caminho_completo": "C:\\User_manual",
         "arquivos": [
           {
-            "nome": "teste2",
-            "extensao": "docx",
-            "tamanho": 0,
-            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
-            "caminho_completo": "C:\\teste\\teste2.docx"
+            "nome": "User_manual_portuguese_Brazil",
+            "extensao": "pdf",
+            "tamanho": 1834446,
+            "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
+            "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf",
+            "status": "presente"
+          },
+          {
+            "nome": "User_manual_spanish_Latin",
+            "extensao": "pdf",
+            "tamanho": 1762531,
+            "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
+            "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf",
+            "status": "presente"
           }
         ],
-        "subpastas": [
-          {
-            "nome": "teste2",
-            "caminho_completo": "C:\\teste\\teste2",
-            "arquivos": [
-              {
-                "nome": "teste",
-                "extensao": "docx",
-                "tamanho": 0,
-                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
-                "caminho_completo": "C:\\teste\\teste2\\teste.docx"
-              }
-            ],
-            "subpastas": []
-          }
-        ]
+        "subpastas": []
       }
     ]
   },
-  "data": "26_11_2025,21:47",
+  "hash_calculado": true,
   "paths_varridos": [
-    "C:\\test2",
-    "C:\\teste"
-  ],
-  "hash_calculado": true
+    "C:\\User_manual"
+  ]
 }

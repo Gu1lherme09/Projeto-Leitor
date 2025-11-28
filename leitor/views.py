@@ -316,9 +316,8 @@ def nova_varredura(request):
 
 def _replace_subtree(raiz, sub_arvore_nova):
     """
-    Navega na árvore 'raiz' e substitui a sub-árvore que tem o mesmo 
-    caminho de 'sub_arvore_nova'.
-    Retorna True se a substituição foi feita.
+    Função auxiliar recursiva para encontrar e substituir uma sub-árvore de pastas 
+    dentro da estrutura de cache principal, usado na lógica de mesclagem.
     """
     if not raiz.caminho_completo or not sub_arvore_nova.caminho_completo.startswith(raiz.caminho_completo + os.sep):
         return False
@@ -354,6 +353,7 @@ def atualizar_cache(request):
         messages.error(request, f"O caminho '{scan_path}' não existe ou não é uma pasta.")
         return redirect("home")
 
+    # Carrega o cache antigo e faz a varredura do novo caminho solicitado.
     raiz_antiga, meta_antigo = carregar_raiz_do_cache()
     if raiz_antiga is None:
         messages.error(request, "Nenhum cache encontrado para atualizar. Execute uma 'Nova varredura' primeiro.")
@@ -367,7 +367,7 @@ def atualizar_cache(request):
         messages.info(request, f"Nenhum arquivo ou pasta encontrado em '{scan_path}'. O cache não foi alterado.")
         return redirect("home")
 
-    # Coleta as raízes de varredura existentes
+    # Coleta as raízes de varredura existentes a partir da raiz virtual do cache.
     old_roots = []
     if raiz_antiga.caminho_completo != "": # Não é virtual
         old_roots.append(raiz_antiga)
@@ -379,18 +379,15 @@ def atualizar_cache(request):
 
     final_roots = []
     raiz_nova_mesclada = False
-
-    # Normaliza o caminho da nova raiz para comparação robusta
     norm_nova_path = os.path.normpath(raiz_nova.caminho_completo).lower()
 
-    # 1. Filtra raízes antigas que são filhas da nova varredura
+    # Lógica de mesclagem: remove raízes antigas que são filhas da nova varredura.
     for old_root in old_roots:
         norm_old_path = os.path.normpath(old_root.caminho_completo).lower()
-        # Se o caminho antigo começar com o novo, ele é um filho e deve ser removido
         if not norm_old_path.startswith(norm_nova_path + os.sep) and norm_old_path != norm_nova_path:
             final_roots.append(old_root)
 
-    # 2. Tenta mesclar a nova varredura em uma das raízes restantes
+    # Lógica de mesclagem: tenta encaixar a nova varredura como subpasta de uma raiz existente.
     for root in final_roots:
         norm_root_path = os.path.normpath(root.caminho_completo).lower()
         if norm_nova_path.startswith(norm_root_path + os.sep):
@@ -398,11 +395,11 @@ def atualizar_cache(request):
             raiz_nova_mesclada = True
             break
     
-    # 3. Se não foi mesclada, é uma raiz nova ou pai
+    # Se a nova varredura não foi mesclada, ela se torna uma nova raiz.
     if not raiz_nova_mesclada:
         final_roots.append(raiz_nova)
 
-    # 4. Reconstrói a raiz virtual com a lista final de raízes
+    # Reconstrói a raiz virtual do cache com a lista final de diretórios.
     raiz_final = Pasta(caminho="", ler_conteudo=False)
     if final_roots:
         # Cria a lista encadeada a partir da `final_roots`
@@ -414,26 +411,19 @@ def atualizar_cache(request):
             atual = novo_no
         raiz_final.subpastas = head
 
-    # === CÁLCULO DE HASH ===
-    # A `meta_antigo` já vem com "hash_calculado" e "data". Apenas atualizamos se necessário.
+    # Se solicitado, calcula o hash dos arquivos que ainda não o possuem no cache final.
     if calcular_hash:
         todos_arquivos = raiz_final.coletar_arquivos()
         for _, arq in todos_arquivos:
             if arq.hash_md5 is None and arq.caminho_completo and os.path.exists(arq.caminho_completo):
                 arq._calcular_hash()
         meta_antigo["hash_calculado"] = True
-    # else: manter o valor existente de meta_antigo["hash_calculado"]
 
-    # === SALVAR O CACHE MESCLADO ===
-    # Atualiza o timestamp do cache
+    # Atualiza os metadados e salva a nova estrutura completa no arquivo cache.json.
     meta_antigo["data"] = datetime.now().strftime('%d_%m_%Y,%H:%M')
-    
-    # Atualiza os caminhos varridos
     meta_antigo["paths_varridos"] = [p.caminho_completo for p in final_roots]
-
     data_to_save = meta_antigo.copy()
     data_to_save["estrutura"] = raiz_final.to_dict()
-    
     salvar_cache_atualizado(data_to_save)
 
     messages.success(request, f"Cache hierarquicamente atualizado com os dados de '{scan_path}'.")
