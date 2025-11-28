@@ -45,9 +45,69 @@ def salvar_cache_atualizado(data_to_save):
         json.dump(data_to_save, f, ensure_ascii=False, indent=2)
 
 
+def _marcar_arquivos_removidos(raiz_antiga, raiz_final):
+    """
+    Para cada arquivo no cache antigo que não exista na raiz_final:
+    - se a pasta correspondente existir em raiz_final, adiciona um registro do arquivo nela
+      com removido=True (preserva histórico);
+    - se a pasta não existir, anexa a pasta antiga inteira na raiz_final (com arquivos
+      marcados como removidos quando ausentes no disco).
+    """
+    from .Arquivo import Arquivo
+
+    def find_pasta(root_pasta, target_norm):
+        # busca recursiva pela pasta com caminho normalizado igual a target_norm
+        if os.path.normpath(root_pasta.caminho_completo).lower() == target_norm:
+            return root_pasta
+        atual = root_pasta.subpastas
+        while atual:
+            res = find_pasta(atual.pasta, target_norm)
+            if res:
+                return res
+            atual = atual.proximo
+        return None
+
+    # Construir mapa de arquivos presentes para comparação rápida
+    presentes = set()
+    for caminho_pasta, arquivo in raiz_final.coletar_arquivos():
+        key = os.path.normpath(os.path.join(caminho_pasta, f"{arquivo.nome}.{arquivo.extensao}")).lower()
+        presentes.add(key)
+
+
+    # Processa arquivos antigos: se ausentes na nova estrutura, adiciona uma cópia marcada como removido
+    for caminho_pasta, arquivo_antigo in raiz_antiga.coletar_arquivos():
+        key = os.path.normpath(os.path.join(caminho_pasta, f"{arquivo_antigo.nome}.{arquivo_antigo.extensao}")).lower()
+        if key in presentes:
+            continue
+
+        norm_pasta = os.path.normpath(caminho_pasta).lower()
+        pasta_dest = find_pasta(raiz_final, norm_pasta)
+        if pasta_dest is None:
+            # cria uma Pasta vazia para anexar na raiz_final
+            from .Pasta import Pasta
+            from .NoPasta import NoPasta
+            pasta_dest = Pasta(caminho_pasta, ler_conteudo=False)
+            pasta_dest.arquivos = []
+            novo_no = NoPasta(pasta_dest)
+            # anexa no final
+            if raiz_final.subpastas is None:
+                raiz_final.subpastas = novo_no
+            else:
+                tail = raiz_final.subpastas
+                while tail.proximo:
+                    tail = tail.proximo
+                tail.proximo = novo_no
+
+        # cria cópia do arquivo antigo com removido=True e anexa
+        novo = Arquivo(arquivo_antigo.nome, arquivo_antigo.extensao, arquivo_antigo.tamanho, arquivo_antigo.caminho_completo)
+        novo.hash_md5 = arquivo_antigo.hash_md5
+        novo.removido = True
+        pasta_dest.arquivos.append(novo)
+
+
 def home(request):
     raiz, meta = carregar_raiz_do_cache()
-     # 👉 Se ainda não existe cache.json ou está inválido
+     # Se ainda não existe cache.json ou está inválido
     if raiz is None:
         contexto = {
             "total_arquivos": 0,
@@ -292,6 +352,9 @@ def nova_varredura(request):
     m = ManipuladorPasta(scan_path, interativo=False)
     m.carregar_estrutura(forcar_recriacao=True, interativo=False)
 
+    if calcular_hash:
+        m.detectar_duplicatas()
+
     data_to_save = {
         "estrutura": m.raiz.to_dict(),
         "data": datetime.now().strftime('%d_%m_%Y,%H:%M'),
@@ -299,7 +362,6 @@ def nova_varredura(request):
     }
 
     if calcular_hash:
-        m.detectar_duplicatas()
         data_to_save["hash_calculado"] = True
     else:
         data_to_save["hash_calculado"] = False
@@ -316,9 +378,56 @@ def nova_varredura(request):
 
 def _replace_subtree(raiz, sub_arvore_nova):
     """
-    Função auxiliar recursiva para encontrar e substituir uma sub-árvore de pastas 
-    dentro da estrutura de cache principal, usado na lógica de mesclagem.
+    Função auxiliar recursiva para encontrar e *mesclar* uma sub-árvore de pastas
+    dentro da estrutura de cache principal. Em vez de descartar o conteúdo antigo,
+    grava arquivos/pastas antigos dentro da nova sub-árvore (marcando como
+    removidos quando o arquivo não existe no disco).
     """
+    def _merge_pastas(old_pasta, new_pasta):
+        # Mescla arquivos: adiciona arquivos antigos que não existem na nova pasta
+        novos_chaves = {(a.nome.lower(), (a.extensao or "").lower()) for a in new_pasta.arquivos}
+        for a in old_pasta.arquivos:
+            key = (a.nome.lower(), (a.extensao or "").lower())
+            if key not in novos_chaves:
+                # marca removido se não existe no disco
+                a.removido = not (a.caminho_completo and os.path.exists(a.caminho_completo))
+                new_pasta.arquivos.append(a)
+
+        # Mescla subpastas recursivamente
+        # Cria mapa caminho->pasta para as subpastas novas
+        novos_sub = {}
+        atual_no = new_pasta.subpastas
+        while atual_no:
+            novos_sub[os.path.normpath(atual_no.pasta.caminho_completo).lower()] = atual_no.pasta
+            atual_no = atual_no.proximo
+
+        # Para cada subpasta antiga: se existir na nova, mescla recursivamente, senão anexar
+        antigo_no = old_pasta.subpastas
+        while antigo_no:
+            old_sub = antigo_no.pasta
+            key = os.path.normpath(old_sub.caminho_completo).lower()
+            if key in novos_sub:
+                _merge_pastas(old_sub, novos_sub[key])
+            else:
+                # anexar o nó antigo ao final da lista de subpastas da new_pasta
+                novo_no = NoPasta(old_sub)
+                if new_pasta.subpastas is None:
+                    new_pasta.subpastas = novo_no
+                else:
+                    tail = new_pasta.subpastas
+                    while tail.proximo:
+                        tail = tail.proximo
+                    tail.proximo = novo_no
+            antigo_no = antigo_no.proximo
+
+    # Permite mesclar quando a raiz atual tem o mesmo caminho que a sub_arvore_nova
+    norm_raiz = os.path.normpath(raiz.caminho_completo).lower() if raiz.caminho_completo else ""
+    norm_sub = os.path.normpath(sub_arvore_nova.caminho_completo).lower() if sub_arvore_nova.caminho_completo else ""
+    if norm_raiz and norm_raiz == norm_sub:
+        _merge_pastas(raiz, sub_arvore_nova)
+        # substitui o conteudo da raiz pelo mesclado
+        return True
+
     if not raiz.caminho_completo or not sub_arvore_nova.caminho_completo.startswith(raiz.caminho_completo + os.sep):
         return False
 
@@ -327,8 +436,10 @@ def _replace_subtree(raiz, sub_arvore_nova):
     while atual:
         pasta_atual = atual.pasta
         
-        # Se encontramos a subpasta exata para substituir
-        if pasta_atual.caminho_completo == sub_arvore_nova.caminho_completo:
+        # Se encontramos a subpasta exata para mesclar
+        if os.path.normpath(pasta_atual.caminho_completo) == os.path.normpath(sub_arvore_nova.caminho_completo):
+            # mescla conteúdo antigo para a nova sub-árvore e substitui o nó
+            _merge_pastas(pasta_atual, sub_arvore_nova)
             atual.pasta = sub_arvore_nova
             return True
 
@@ -359,9 +470,10 @@ def atualizar_cache(request):
         messages.error(request, "Nenhum cache encontrado para atualizar. Execute uma 'Nova varredura' primeiro.")
         return redirect("home")
 
-    m_novo = ManipuladorPasta(scan_path, interativo=False)
-    m_novo.carregar_estrutura(forcar_recriacao=True, interativo=False)
-    raiz_nova = m_novo.raiz
+    # Evita usar ManipuladorPasta aqui porque sua carregar_estrutura pode sobrescrever o cache atual.
+    # Em vez disso, constrói apenas a Pasta nova diretamente, sem salvar em disco.
+    from .Pasta import Pasta
+    raiz_nova = Pasta(scan_path, ler_conteudo=True)
 
     if not raiz_nova or (not raiz_nova.arquivos and not raiz_nova.subpastas):
         messages.info(request, f"Nenhum arquivo ou pasta encontrado em '{scan_path}'. O cache não foi alterado.")
@@ -384,7 +496,18 @@ def atualizar_cache(request):
     # Lógica de mesclagem: remove raízes antigas que são filhas da nova varredura.
     for old_root in old_roots:
         norm_old_path = os.path.normpath(old_root.caminho_completo).lower()
-        if not norm_old_path.startswith(norm_nova_path + os.sep) and norm_old_path != norm_nova_path:
+        # Se old_root corresponde exatamente à nova raiz, mescla o conteúdo antigo na nova
+        if norm_old_path == norm_nova_path:
+            # merge antigo -> novo diretamente
+            try:
+                _replace_subtree(old_root, raiz_nova)
+            except Exception:
+                pass
+            raiz_nova_mesclada = True
+            # substitui o old_root por raiz_nova para garantir novos arquivos estejam presentes
+            final_roots.append(raiz_nova)
+        # se old_root não é filho da nova raiz, preserva
+        elif not norm_old_path.startswith(norm_nova_path + os.sep) and norm_old_path != norm_nova_path:
             final_roots.append(old_root)
 
     # Lógica de mesclagem: tenta encaixar a nova varredura como subpasta de uma raiz existente.
@@ -418,6 +541,33 @@ def atualizar_cache(request):
             if arq.hash_md5 is None and arq.caminho_completo and os.path.exists(arq.caminho_completo):
                 arq._calcular_hash()
         meta_antigo["hash_calculado"] = True
+
+    # Marca arquivos que existiam no cache antigo mas foram removidos do disco
+    _marcar_arquivos_removidos(raiz_antiga, raiz_final)
+
+    # Mescla entradas antigas que não foram incorporadas pela lógica de inserir a nova raiz
+    def _append_old_entries(old_root, raiz_final):
+        # procura pasta correspondente na raiz_final; se nao achar, anexa a antiga como subpasta
+        norm_old = os.path.normpath(old_root.caminho_completo).lower()
+        atual = raiz_final.subpastas
+        while atual:
+            if os.path.normpath(atual.pasta.caminho_completo).lower() == norm_old:
+                return True  # já existe
+            atual = atual.proximo
+        # anexa no final
+        novo_no = NoPasta(old_root)
+        if raiz_final.subpastas is None:
+            raiz_final.subpastas = novo_no
+        else:
+            tail = raiz_final.subpastas
+            while tail.proximo:
+                tail = tail.proximo
+            tail.proximo = novo_no
+        return True
+
+    # anexa quaisquer raízes antigas que não estejam na final_roots
+    # for old_root in old_roots:
+    #     _append_old_entries(old_root, raiz_final)
 
     # Atualiza os metadados e salva a nova estrutura completa no arquivo cache.json.
     meta_antigo["data"] = datetime.now().strftime('%d_%m_%Y,%H:%M')

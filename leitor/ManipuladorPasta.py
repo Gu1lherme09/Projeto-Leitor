@@ -79,38 +79,35 @@ class ManipuladorPasta:
 
     def detectar_duplicatas(self):
         """
-        Detecta arquivos duplicados usando apenas MD5.
-        Otimização: primeiro agrupa por tamanho para reduzir hashes desnecessários.
+        Detecta arquivos duplicados usando MD5. Garante que todos os arquivos
+        tenham seu hash calculado se a função for chamada.
         """
-        from .Arquivo import Arquivo  # garantir import local
+        from .Arquivo import Arquivo
 
-        tamanho_dict = defaultdict(list)
-        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
-            # garantir que caminho exista
-            if arquivo.caminho_completo and os.path.exists(arquivo.caminho_completo):
-                tamanho_dict[arquivo.tamanho].append((caminho_pasta, arquivo))
+        todos_arquivos = self.raiz.coletar_arquivos()
 
+        # 1. Garante que todos os arquivos tenham hash calculado
+        for _, arquivo in todos_arquivos:
+            if not arquivo.hash_md5:
+                if arquivo.caminho_completo and os.path.exists(arquivo.caminho_completo):
+                    arquivo._calcular_hash()
+
+        # 2. Agrupa arquivos por hash (ignorando arquivos sem hash)
+        hash_dict = defaultdict(list)
+        for caminho_pasta, arquivo in todos_arquivos:
+            if arquivo.hash_md5:
+                hash_dict[arquivo.hash_md5].append((caminho_pasta, arquivo))
+
+        # 3. Filtra os grupos que de fato são duplicados
         duplicatas = []
         total_duplicados = 0
         espaco_duplicado = 0
-
-        for tamanho, arquivos in tamanho_dict.items():
-            if len(arquivos) < 2:
-                continue
-
-            hash_dict = defaultdict(list)
-            for caminho, arquivo in arquivos:
-                # calcular hash se ainda não calculado
-                if not arquivo.hash_md5:
-                    arquivo._calcular_hash()
-                if arquivo.hash_md5:
-                    hash_dict[arquivo.hash_md5].append((caminho, arquivo))
-
-            for hash_value, grupo in hash_dict.items():
-                if len(grupo) > 1:
-                    duplicatas.append((tamanho, hash_value, grupo))
-                    total_duplicados += len(grupo) - 1
-                    espaco_duplicado += (len(grupo) - 1) * tamanho
+        for hash_value, grupo in hash_dict.items():
+            if len(grupo) > 1:
+                tamanho = grupo[0][1].tamanho  # Tamanho é o mesmo para todos no grupo
+                duplicatas.append((tamanho, hash_value, grupo))
+                total_duplicados += len(grupo) - 1
+                espaco_duplicado += (len(grupo) - 1) * tamanho
 
         if not duplicatas:
             print("\n✅ Nenhum arquivo duplicado encontrado.")
