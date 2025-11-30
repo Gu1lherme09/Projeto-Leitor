@@ -1,30 +1,148 @@
 {
   "estrutura": {
-    "nome": "User_manual",
-    "caminho_completo": "C:\\User_manual",
-    "arquivos": [
+    "nome": "",
+    "caminho_completo": "",
+    "arquivos": [],
+    "subpastas": [
       {
-        "nome": "User_manual_portuguese_Brazil",
-        "extensao": "pdf",
-        "tamanho": 1834446,
-        "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
-        "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf",
-        "removido": false
+        "nome": "User_manual",
+        "caminho_completo": "C:\\User_manual",
+        "arquivos": [
+          {
+            "nome": "User_manual_portuguese_Brazil",
+            "extensao": "pdf",
+            "tamanho": 1834446,
+            "hash_md5": "df6483eaad26b9216bfa2a22075f9d94",
+            "caminho_completo": "C:\\User_manual\\User_manual_portuguese_Brazil.pdf",
+            "removido": false
+          },
+          {
+            "nome": "User_manual_spanish_Latin",
+            "extensao": "pdf",
+            "tamanho": 1762531,
+            "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
+            "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf",
+            "removido": false
+          }
+        ],
+        "subpastas": []
       },
       {
-        "nome": "User_manual_spanish_Latin",
-        "extensao": "pdf",
-        "tamanho": 1762531,
-        "hash_md5": "3807262d9edc67af40340a9a6ea3cf1f",
-        "caminho_completo": "C:\\User_manual\\User_manual_spanish_Latin.pdf",
-        "removido": false
+        "nome": "test2",
+        "caminho_completo": "C:\\test2",
+        "arquivos": [
+          {
+            "nome": "blajsidind",
+            "extensao": "txt",
+            "tamanho": 0,
+            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "caminho_completo": "C:\\test2\\blajsidind.txt",
+            "removido": false
+          }
+        ],
+        "subpastas": [
+          {
+            "nome": "novo",
+            "caminho_completo": "C:\\test2\\novo",
+            "arquivos": [
+              {
+                "nome": "novo",
+                "extensao": "txt",
+                "tamanho": 0,
+                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                "caminho_completo": "C:\\test2\\novo\\novo.txt",
+                "removido": false
+              },
+              {
+                "nome": "teste2",
+                "extensao": "txt",
+                "tamanho": 0,
+                "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                "caminho_completo": "C:\\test2\\novo\\teste2.txt",
+                "removido": false
+              }
+            ],
+            "subpastas": []
+          }
+        ]
+      },
+      {
+        "nome": "teste",
+        "caminho_completo": "C:\\teste",
+        "arquivos": [
+          {
+            "nome": "bdqebdlçsl",
+            "extensao": "pub",
+            "tamanho": 59904,
+            "hash_md5": "0627b4727e2bfe1d1cb7f06b82bfcc5c",
+            "caminho_completo": "C:\\teste\\bdqebdlçsl.pub",
+            "removido": false
+          },
+          {
+            "nome": "c,eklq",
+            "extensao": "txt",
+            "tamanho": 0,
+            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "caminho_completo": "C:\\teste\\c,eklq.txt",
+            "removido": true
+          },
+          {
+            "nome": "dmwmqmdqçd,eç,",
+            "extensao": "accdb",
+            "tamanho": 495616,
+            "hash_md5": "c62666d61a64c4ebb9e36f55eadfd59a",
+            "caminho_completo": "C:\\teste\\dmwmqmdqçd,eç,.accdb",
+            "removido": true
+          }
+        ],
+        "subpastas": [
+          {
+            "nome": "pasta pasta",
+            "caminho_completo": "C:\\teste\\pasta pasta",
+            "arquivos": [
+              {
+                "nome": "cmlmldmwe",
+                "extensao": "xlsx",
+                "tamanho": 6537,
+                "hash_md5": "9dcb652946050a773a17f1d4d9df7bd3",
+                "caminho_completo": "C:\\teste\\pasta pasta\\cmlmldmwe.xlsx",
+                "removido": false
+              }
+            ],
+            "subpastas": [
+              {
+                "nome": "novo",
+                "caminho_completo": "C:\\teste\\pasta pasta\\novo",
+                "arquivos": [
+                  {
+                    "nome": "kskskkakka",
+                    "extensao": "txt",
+                    "tamanho": 0,
+                    "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+                    "caminho_completo": "C:\\teste\\pasta pasta\\novo\\kskskkakka.txt",
+                    "removido": false
+                  }
+                ],
+                "subpastas": [
+                  {
+                    "nome": "xowejod",
+                    "caminho_completo": "C:\\teste\\pasta pasta\\novo\\xowejod",
+                    "arquivos": [],
+                    "subpastas": []
+                  }
+                ]
+              }
+            ]
+          }
+        ]
       }
-    ],
-    "subpastas": []
+    ]
   },
-  "data": "28_11_2025,08:39",
+  "data": "30_11_2025,09:27",
   "paths_varridos": [
-    "C:\\User_manual"
+    "C:\\User_manual",
+    "C:\\test2",
+    "C:\\teste"
   ],
   "hash_calculado": true
 }
