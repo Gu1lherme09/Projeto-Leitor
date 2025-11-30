@@ -1,0 +1,25 @@
+    {% load static %}
+    <aside class="sidebar">
+        <div class="sidebar-logo">
+            <span class="logo-mark">LD</span>
+            <span class="logo-text">Leitor de Disco</span>
+        </div>
+
+        <nav class="sidebar-menu">
+            <a href="{% url 'home' %}" class="menu-item {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+                Visão Geral
+            </a>
+
+            <a href="{% url 'pesquisar' %}" class="menu-item {% if request.resolver_match.url_name == 'pesquisar' %}active{% endif %}">
+                Busca por Arquivos
+            </a>
+
+            <a href="{% url 'duplicados' %}" class="menu-item {% if request.resolver_match.url_name == 'duplicados' %}active{% endif %}">
+                Duplicados
+            </a>    
+        </nav>
+
+        <div class="sidebar-footer">
+            <span>Cache: atualizado {{ cache_last_updated_label }}</span>
+        </div>
+    </aside>

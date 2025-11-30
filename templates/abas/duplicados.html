@@ -1,0 +1,639 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Leitor de Disco - Arquivos Duplicados{% endblock %}
+{% block content %}
+
+        <header class="main-header">
+            <div>
+                <h1>Arquivos Duplicados</h1>
+                <p class="subtitle">Visualize grupos de arquivos com mesmo tamanho e hash para limpeza segura.</p>
+            </div>
+            <div class="header-actions">
+                <form method="post"
+                    action="{% url 'duplicados' %}"
+                    id="form-recalcular-duplicados">
+                    {% csrf_token %}
+                    <button class="btn primary" type="submit" id="btn-recalcular-duplicados">
+                        Recalcular duplicados
+                    </button>
+                </form>
+            </div>
+        </header>
+                <section class="grid-2">
+            <article class="card">
+                <header class="card-header">
+                    <h2>Resumo dos duplicados</h2>
+                    <span class="card-subtitle">Estatísticas gerais da última varredura.</span>
+                </header>
+                <div class="summary-grid">
+                    <div class="summary-item">
+                        <span class="summary-label">Arquivos duplicados</span>
+                        <span class="summary-value">
+                            {{ total_duplicados|default:"0" }}
+                        </span>
+                        <span class="summary-sub">arquivos que têm pelo menos um clone</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Grupos de duplicados</span>
+                        <span class="summary-value">
+                            {{ total_grupos|default:"0" }}
+                        </span>
+                        <span class="summary-sub">conjuntos com 2+ arquivos idênticos</span>
+                    </div>
+                    <div class="summary-item">
+                        <span class="summary-label">Espaço desperdiçado</span>
+                        <span class="summary-value">
+                            {{ espaco_duplicado_gb|floatformat:1 }} GB
+                        </span>
+                        <span class="summary-sub">poderia ser liberado com limpeza</span>
+                    </div>
+                </div>
+            </article>
+
+            <article class="card center" id="integridade-card">
+                <header class="card-header">
+                    <h2>Recalcular duplicados</h2>
+                    <span class="card-subtitle">
+                        Acompanhe o progresso enquanto o hash é calculado.
+                    </span>
+                </header>
+
+                <div class="integridade-circle-wrapper">
+                    <svg class="integridade-circle" viewBox="0 0 120 120">
+                        <circle class="integridade-circle-bg" cx="60" cy="60" r="52"></circle>
+                        <circle class="integridade-circle-fg" id="integridade-circle-fg" cx="60" cy="60" r="52"></circle>
+                    </svg>
+
+                    <div class="integridade-circle-inner">
+                        <span id="integridade-percent">100%</span>
+                        <small id="integridade-status">aguardando</small>
+                    </div>
+                </div>
+
+                <p id="integridade-text">
+                    Clique em <strong>Recalcular duplicados</strong> para iniciar o cálculo de hash.
+                </p>
+            </article>
+        </section>
+        {% if grupos %}
+<section class="grid-3" style="margin-top: 18px;">
+    <article class="card center">
+        <header class="card-header">
+            <div>
+                <h2>Extensões (grupos visíveis)</h2>
+                <span class="card-subtitle" id="dup-counter">
+                    Calculando estatísticas...
+                </span>
+            </div>
+        </header>
+        <div class="donut-container">
+            <div class="donut" style="border:none; width:220px; height:220px;">
+                <canvas id="dupExtChart"></canvas>
+            </div>
+        </div>
+    </article>
+
+    <article class="card center">
+        <header class="card-header">
+            <h2>Pastas principais</h2>
+            <span class="card-subtitle">
+                Top pastas dos grupos visíveis
+            </span>
+        </header>
+        <div class="donut-container">
+            <div class="donut" style="border:none; width:220px; height:220px;">
+                <canvas id="dupFolderChart"></canvas>
+            </div>
+        </div>
+    </article>
+
+    <article class="card center">
+        <header class="card-header">
+            <h2>Impacto dos duplicados</h2>
+            <span class="card-subtitle">
+                Arquivos base vs duplicados extras (grupos visíveis)
+            </span>
+        </header>
+        <div class="donut-container">
+            <div class="donut" style="border:none; width:220px; height:220px;">
+                <canvas id="dupWasteChart"></canvas>
+            </div>
+        </div>
+    </article>
+</section>
+{% endif %}
+
+       <section class="card">
+    <header class="card-header">
+        <h2>Grupos de arquivos duplicados</h2>
+        <span class="card-subtitle">
+            Arquivos com mesmo tamanho e hash MD5.
+        </span>
+    </header>
+
+    <div class="duplicates-filters">
+        <div class="search-field">
+            <label for="filtro_ext">Filtrar por extensão</label>
+            <input class="input" id="filtro_ext" type="text" placeholder="Ex: .mp4, .zip, .pdf">
+        </div>
+        <div class="search-field">
+            <label for="filtro_pasta">Filtrar por pasta</label>
+            <input class="input" id="filtro_pasta" type="text" placeholder="Parte do caminho da pasta">
+        </div>
+    </div>
+
+    {% if not hash_disponivel %}
+        <p style="margin-top: 10px; font-size: 13px; color: var(--text-muted);">
+            Nenhum hash MD5 encontrado no cache. Clique em <strong>Recalcular duplicados</strong>
+            para gerar os hashes a partir do cache.
+        </p>
+    {% endif %}
+
+    {% if grupos %}
+        <div id="dup-groups">
+            {% for grupo in grupos %}
+                <div class="duplicate-group">
+                    <div class="duplicate-group-header">
+                        <div>
+                            <span class="badge badge-ext">.{{ grupo.ext }}</span>
+                            <span class="group-title">Grupo #{{ grupo.id }}</span>
+                        </div>
+                        <div class="group-meta">
+                            <span class="mono">Hash: {{ grupo.hash }}</span>
+                            <span class="badge badge-dup-count">
+                                {{ grupo.qtd_arquivos }} arquivos
+                            </span>
+                        </div>
+                    </div>
+
+                    <div class="table-wrapper">
+                        <table class="table table-compact">
+                            <thead>
+                                <tr>
+                                    <th>Nome</th>
+                                    <th>Caminho completo</th>
+                                    <th>Data modificação</th>
+                                    <th>Origem</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for arq in grupo.arquivos %}
+                                    <tr data-size-bytes="{{ arq.tamanho_bytes|default:'0' }}"> 
+                                        <td>{{ arq.nome }}</td>
+                                        <td class="col-path">{{ arq.caminho }}</td>
+                                        <td>{{ arq.data_mod }}</td>
+                                        <td>
+                                            <span class="badge badge-cache">Cache</span>
+                                        </td>
+                                    </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="table-footer table-footer--dup">
+            <span id="dup-info">
+                Mostrando {{ grupos|length }} de {{ total_grupos }} grupos de duplicados.
+            </span>
+
+            <div id="dup-pagination"></div>
+        </div>
+    {% else %}
+        {% if hash_disponivel %}
+            <p style="margin-top: 10px; font-size: 13px; color: var(--text-muted);">
+                Nenhum grupo de arquivos duplicados encontrado na última varredura.
+            </p>
+        {% endif %}
+    {% endif %}
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const filtroExt   = document.getElementById("filtro_ext");
+    const filtroPasta = document.getElementById("filtro_pasta");
+    const infoEl      = document.getElementById("dup-info");
+    const formRecalc  = document.getElementById("form-recalcular-duplicados");
+
+    // =========================
+    // CRONÔMETRO / LOADER DE INTEGRIDADE (OPCIONAL)
+    // =========================
+    const integridadeCircle = document.getElementById("integridade-circle-fg");
+    const integridadePercent = document.getElementById("integridade-percent");
+    const integridadeStatus  = document.getElementById("integridade-status");
+    const integridadeText    = document.getElementById("integridade-text");
+
+    let integridadeInterval = null;
+    let integridadeProg = 100;
+    const CIRCLE_RADIUS = 52;
+    const CIRCLE_CIRC   = 2 * Math.PI * CIRCLE_RADIUS;
+
+    if (integridadeCircle) {
+        integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
+    }
+
+    function setIntegridadeProgress(p) {
+        if (!integridadeCircle || !integridadePercent) return;
+        const val = Math.max(0, Math.min(100, p));
+        const offset = CIRCLE_CIRC * (1 - val / 100);
+        integridadeCircle.style.strokeDashoffset = offset;
+        integridadePercent.textContent = val + "%";
+    }
+
+    // estado inicial 100%
+    setIntegridadeProgress(100);
+
+    function ativarLoaderIntegridade() {
+        if (!integridadeCircle) return;
+
+        integridadeProg = 0;
+        setIntegridadeProgress(0);
+
+        if (integridadeStatus) integridadeStatus.textContent = "calculando hash";
+        if (integridadeText) {
+            integridadeText.textContent =
+                "Estamos recalculando os hashes MD5 dos arquivos duplicados. Isso pode demorar alguns minutos...";
+        }
+
+        if (integridadeInterval) {
+            clearInterval(integridadeInterval);
+        }
+        integridadeInterval = setInterval(() => {
+            if (integridadeProg < 95) {
+                integridadeProg += 1;
+                setIntegridadeProgress(integridadeProg);
+            }
+        }, 250);
+    }
+
+    function finalizarLoaderIntegridade(mensagemOk) {
+        if (!integridadeCircle) return;
+
+        if (integridadeInterval) {
+            clearInterval(integridadeInterval);
+            integridadeInterval = null;
+        }
+        integridadeProg = 100;
+        setIntegridadeProgress(100);
+
+        if (integridadeStatus) integridadeStatus.textContent = "concluído";
+        if (integridadeText) {
+            integridadeText.textContent =
+                mensagemOk || "Recalcular duplicados concluído. A lista foi atualizada.";
+        }
+    }
+
+    // =========================
+    // CONFIRM + LOADER NO "RECALCULAR DUPLICADOS"
+    // =========================
+    if (formRecalc) {
+        formRecalc.addEventListener("submit", async function (e) {
+            if (typeof window.showConfirm === "function") {
+                e.preventDefault();
+
+                const ok = await window.showConfirm({
+                    title: "Recalcular duplicados?",
+                    text: "Esse processo pode demorar alguns minutos, dependendo do tamanho do cache analisado.",
+                    confirmLabel: "Iniciar cálculo",
+                    cancelLabel: "Cancelar",
+                    variant: "warning",
+                });
+
+                if (!ok) {
+                    window.enqueueNotification?.({
+                        title: "Ação cancelada",
+                        text: "O recálculo de duplicados foi cancelado.",
+                        variant: "info",
+                    });
+                    return;
+                }
+
+                window.enqueueNotification?.({
+                    title: "Recalculando duplicados",
+                    text: "Estamos analisando o cache em busca de duplicados. Você pode continuar usando o sistema.",
+                    variant: "info",
+                });
+
+                ativarLoaderIntegridade();
+                formRecalc.submit();
+            } else {
+                // sem showConfirm: só ativa loader e envia
+                ativarLoaderIntegridade();
+            }
+        });
+    }
+
+    // =========================
+    // SE NÃO TIVER GRUPOS, PARA POR AQUI
+    // =========================
+    const groupsContainer = document.querySelector('#dup-groups');
+    if (!groupsContainer) return;
+
+    // =========================
+    // FUNÇÕES AUXILIARES PARA ESTATÍSTICAS / GRÁFICOS
+    // =========================
+    function collectStatsFromVisibleGroups() {
+        const visibleGroups = Array.from(
+            document.querySelectorAll(".duplicate-group")
+        ).filter(g => g.offsetParent !== null); // só grupos realmente visíveis (página + filtro)
+
+        const byExtSize    = new Map(); // extensão -> bytes
+        const byFolderSize = new Map(); // pasta   -> bytes
+
+        let baseCount = 0;   // 1 arquivo "base" por grupo
+        let dupCount  = 0;   // arquivos extras (duplicados além do primeiro)
+        let baseBytes = 0;
+        let dupBytes  = 0;
+        let totalFiles = 0;
+
+        visibleGroups.forEach(group => {
+            const badgeExt = group.querySelector(".badge-ext");
+            const extLabel = badgeExt ? badgeExt.textContent.trim() : "desconhecido";
+
+            const rows = Array.from(group.querySelectorAll("tbody tr"))
+                .filter(r => r.style.display !== "none"); // respeita filtros de texto
+
+            if (!rows.length) return;
+
+            baseCount += 1;
+            totalFiles += rows.length;
+
+            // pasta baseada na primeira linha visível
+            const firstRow = rows[0];
+            const pathCell = firstRow.querySelector(".col-path");
+            let path = pathCell ? pathCell.textContent.trim() : "";
+            let folderLabel = path;
+
+            const lastSep = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+            if (lastSep > 0) folderLabel = path.slice(0, lastSep);
+
+            if (folderLabel.length > 50) {
+                folderLabel = "…" + folderLabel.slice(-50);
+            }
+
+            rows.forEach((row, idx) => {
+                const rawSize  = row.dataset.sizeBytes || row.getAttribute("data-size-bytes") || "0";
+                const sizeBytes = parseInt(rawSize, 10) || 0;
+
+                // soma por extensão
+                byExtSize.set(extLabel, (byExtSize.get(extLabel) || 0) + sizeBytes);
+                // soma por pasta
+                byFolderSize.set(folderLabel, (byFolderSize.get(folderLabel) || 0) + sizeBytes);
+
+                if (idx === 0) {
+                    baseBytes += sizeBytes;
+                } else {
+                    dupBytes  += sizeBytes;
+                    dupCount  += 1;
+                }
+            });
+        });
+
+        return {
+            byExtSize,
+            byFolderSize,
+            baseCount,
+            dupCount,
+            baseBytes,
+            dupBytes,
+            totalFiles,
+            groupCount: visibleGroups.length,
+        };
+    }
+
+    function buildDatasetFromMap(map, maxItems = 6) {
+        const entries = Array.from(map.entries())
+            .sort((a, b) => b[1] - a[1])  // maior -> menor
+            .slice(0, maxItems);
+
+        const BYTES_IN_GB = 1024 * 1024 * 1024;
+
+        return {
+            labels: entries.map(e => e[0]),
+            data:   entries.map(e => e[1] / BYTES_IN_GB), // bytes -> GB
+        };
+    }
+
+    // =========================
+    // INSTÂNCIAS DOS GRÁFICOS
+    // =========================
+    const extCtx   = document.getElementById("dupExtChart")?.getContext("2d");
+    const pastaCtx = document.getElementById("dupFolderChart")?.getContext("2d");
+    const wasteCtx = document.getElementById("dupWasteChart")?.getContext("2d");
+
+    let extChart   = null;
+    let pastaChart = null;
+    let wasteChart = null;
+
+    function updateDupCharts() {
+        const stats = collectStatsFromVisibleGroups();
+
+        const BYTES_IN_GB = 1024 * 1024 * 1024;
+        const baseGB = stats.baseBytes / BYTES_IN_GB;
+        const dupGB  = stats.dupBytes  / BYTES_IN_GB;
+        const totalGB = baseGB + dupGB;
+
+        // contador no subtítulo do primeiro card (Extensões)
+        const counterEl = document.getElementById("dup-counter");
+        if (counterEl) {
+            counterEl.textContent =
+                `${stats.totalFiles} arquivo(s) nesta página ` +
+                `(${stats.groupCount} grupo(s), ${stats.dupCount} duplicado(s) extra).`;
+        }
+
+        // ----- DONUT: impacto (base x duplicados extras em GB) -----
+        if (wasteCtx) {
+            const data = totalGB > 0 ? [baseGB, dupGB] : [0, 0];
+
+            if (!wasteChart) {
+                wasteChart = new Chart(wasteCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels: ["Arquivos base", "Duplicados extras"],
+                        datasets: [{
+                            data: data,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: "60%",
+                        plugins: {
+                            legend: {
+                                position: "bottom"
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx =>
+                                        `${ctx.label}: ${ctx.parsed.toFixed(2)} GB`
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                wasteChart.data.datasets[0].data = data;
+                wasteChart.update();
+            }
+        }
+
+        // ----- COLUNA: EXTENSÃO x GB -----
+        if (extCtx) {
+            const extData = buildDatasetFromMap(stats.byExtSize);
+
+            if (!extChart) {
+                extChart = new Chart(extCtx, {
+                    type: "bar",
+                    data: {
+                        labels: extData.labels,
+                        datasets: [{
+                            data: extData.data,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx =>
+                                        `${ctx.parsed.toFixed(2)} GB`
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { callback: v => v + " GB" }
+                            }
+                        }
+                    }
+                });
+            } else {
+                extChart.data.labels = extData.labels;
+                extChart.data.datasets[0].data = extData.data;
+                extChart.update();
+            }
+        }
+
+        // ----- COLUNA: PASTA x GB -----
+        if (pastaCtx) {
+            const pastaData = buildDatasetFromMap(stats.byFolderSize);
+
+            if (!pastaChart) {
+                pastaChart = new Chart(pastaCtx, {
+                    type: "bar",
+                    data: {
+                        labels: pastaData.labels,
+                        datasets: [{
+                            data: pastaData.data,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        plugins: {
+                            legend: { display: false },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx =>
+                                        `${ctx.parsed.toFixed(2)} GB`
+                                }
+                            }
+                        },
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                ticks: { callback: v => v + " GB" }
+                            },
+                            x: {
+                                ticks: {
+                                    maxRotation: 30,
+                                    minRotation: 0,
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                pastaChart.data.labels = pastaData.labels;
+                pastaChart.data.datasets[0].data = pastaData.data;
+                pastaChart.update();
+            }
+        }
+    }
+
+    // =========================
+    // FILTRO POR EXTENSÃO / PASTA + PAGINAÇÃO
+    // =========================
+    function filtrarGrupo(group) {
+        const extValue   = (filtroExt.value   || "").trim().toLowerCase();
+        const pastaValue = (filtroPasta.value || "").trim().toLowerCase();
+
+        const rows = group.querySelectorAll("tbody tr");
+        let linhasVisiveis = 0;
+
+        rows.forEach(row => {
+            const colPath = row.querySelector(".col-path");
+            const colNome = row.querySelector("td:first-child");
+
+            const pathText = (colPath ? colPath.textContent : "").toLowerCase();
+            const nomeText = (colNome ? colNome.textContent : "").toLowerCase();
+
+            let okExt   = true;
+            let okPasta = true;
+
+            if (extValue) {
+                const filtroComPonto = extValue.startsWith(".")
+                    ? extValue
+                    : "." + extValue;
+
+                okExt = nomeText.includes(filtroComPonto) || pathText.includes(filtroComPonto);
+            }
+
+            if (pastaValue) {
+                okPasta = pathText.includes(pastaValue);
+            }
+
+            const mostrar = okExt && okPasta;
+            row.style.display = mostrar ? "" : "none";
+            if (mostrar) linhasVisiveis++;
+        });
+
+        return linhasVisiveis > 0;
+    }
+
+    const instance = window.initCardFilter({
+        container: '#dup-groups',
+        itemSelector: '.duplicate-group',
+        controls: '#dup-pagination',
+        perPage: 4,
+        perPageOptions: [4, 10, 20, 50],
+        customFilter: filtrarGrupo,
+        onStatsChange({ pageItems, filteredTotal }) {
+            if (infoEl) {
+                infoEl.textContent =
+                    `Mostrando ${pageItems} de ${filteredTotal} grupos de duplicados.`;
+            }
+            updateDupCharts();
+        }
+    });
+
+    if (!instance) return;
+
+    // estado inicial
+    updateDupCharts();
+
+    function atualizarFiltro() {
+        instance.refresh();
+    }
+
+    if (filtroExt)   filtroExt.addEventListener("input", atualizarFiltro);
+    if (filtroPasta) filtroPasta.addEventListener("input", atualizarFiltro);
+});
+</script>
+
+
+
+{% endblock %}
