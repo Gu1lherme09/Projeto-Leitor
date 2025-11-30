@@ -61,6 +61,22 @@ def carregar_raiz_do_cache():
         return None, None
 
 
+from datetime import datetime
+import os
+import json
+from collections import defaultdict
+import shutil
+
+from django.conf import settings
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+from .Pasta import Pasta
+from .ManipuladorPasta import ManipuladorPasta
+
+CACHE_PATH = os.path.join(settings.BASE_DIR, "Cache", "cache.json")
+
+
 def home(request):
     raiz, meta = carregar_raiz_do_cache()
     if raiz is None:
@@ -69,13 +85,18 @@ def home(request):
             "total_tamanho_gb": 0,
             "extensoes_unicas": 0,
             "top_extensoes": [],
+            "estensoes": [],
             "outros_gb": 0,
             "hash_disponivel": False,
             "total_duplicados": None,
             "espaco_duplicado_gb": None,
             "espaco_ocupado_gb": 0,
             "espaco_livre_gb": 0,
-            "sem_cache": True, 
+            "sem_cache": True,
+            "bucket_maior_1gb_gb": 0,
+            "bucket_100mb_1gb_gb": 0,
+            "bucket_menor_100mb_gb": 0,
+            "ext_buckets": {},
         }
         return render(request, "home/home.html", contexto)
 
@@ -92,39 +113,63 @@ def home(request):
     UM_GB = 1024 ** 3
     CEM_MB = 100 * 1024 ** 2
 
+    ext_buckets_bytes = defaultdict(lambda: {
+        "gt_1gb": 0,
+        "between_100mb_1gb": 0,
+        "lt_100mb": 0,
+    })
+
+    ext_tamanhos = defaultdict(int)
+
     for _, arq in arquivos:
-        if arq.tamanho > UM_GB:
-            bucket_maior_1gb_bytes += arq.tamanho
-        elif arq.tamanho >= CEM_MB:
-            bucket_100mb_1gb_bytes += arq.tamanho
+        size = arq.tamanho
+        ext = (arq.extensao or "").lower()
+
+        if size > UM_GB:
+            bucket_maior_1gb_bytes += size
+            ext_buckets_bytes[ext]["gt_1gb"] += size
+        elif size >= CEM_MB:
+            bucket_100mb_1gb_bytes += size
+            ext_buckets_bytes[ext]["between_100mb_1gb"] += size
         else:
-            bucket_menor_100mb_bytes += arq.tamanho
+            bucket_menor_100mb_bytes += size
+            ext_buckets_bytes[ext]["lt_100mb"] += size
+
+        ext_tamanhos[ext] += size
 
     bucket_maior_1gb_gb   = bucket_maior_1gb_bytes   / (1024 ** 3) if bucket_maior_1gb_bytes else 0
     bucket_100mb_1gb_gb   = bucket_100mb_1gb_bytes   / (1024 ** 3) if bucket_100mb_1gb_bytes else 0
     bucket_menor_100mb_gb = bucket_menor_100mb_bytes / (1024 ** 3) if bucket_menor_100mb_bytes else 0
 
-    extensoes_set = {arq.extensao.lower() for _, arq in arquivos}
+    extensoes_set = { (arq.extensao or "").lower() for _, arq in arquivos }
     extensoes_unicas = len(extensoes_set)
-
-    ext_tamanhos = defaultdict(int)
-    for _, arq in arquivos:
-        ext_tamanhos[arq.extensao.lower()] += arq.tamanho
 
     ordenadas = sorted(ext_tamanhos.items(), key=lambda x: x[1], reverse=True)
     top5 = ordenadas[:5]
     outros_total = sum(t for _, t in ordenadas[5:])
 
+    extensoes = [
+    {"ext": ext, "gb": tamanho / (1024 ** 3)}
+        for ext, tamanho in ordenadas
+    ]
+
     top_extensoes = [
         {"ext": ext, "gb": tamanho / (1024 ** 3)}
         for ext, tamanho in top5
     ]
+
     outros_gb = outros_total / (1024 ** 3) if outros_total else 0
+
+    ext_buckets_gb = {}
+    for ext, buckets in ext_buckets_bytes.items():
+        ext_buckets_gb[ext] = {
+            key: val / (1024 ** 3) for key, val in buckets.items()
+        }
 
     root_path = raiz.caminho_completo or ""
     drive, _ = os.path.splitdrive(root_path)
     if drive:
-        base_disk_path = drive + os.sep 
+        base_disk_path = drive + os.sep
     else:
         base_disk_path = os.path.abspath(root_path) if root_path else settings.BASE_DIR
 
@@ -139,12 +184,9 @@ def home(request):
     espaco_ocupado_gb = total_tamanho_gb
     espaco_livre_gb = max(total_disk_gb - espaco_ocupado_gb, 0)
 
-    arquivos = raiz.coletar_arquivos() 
-
     grupos_por_tamanho_hash = defaultdict(list)
 
     for _, arq in arquivos:
-        # só considera arquivos que já têm hash_md5 preenchido
         if not arq.hash_md5:
             continue
         key = (arq.tamanho, arq.hash_md5)
@@ -156,17 +198,13 @@ def home(request):
     for (tamanho, _), lista in grupos_por_tamanho_hash.items():
         if len(lista) < 2:
             continue
-
-        # em um grupo com N arquivos, temos N-1 duplicados
         qtd_dup = len(lista) - 1
         total_duplicados += qtd_dup
         espaco_duplicado_bytes += qtd_dup * tamanho
 
-    # Existe pelo menos 1 hash calculado no cache?
     hash_disponivel = any(arq.hash_md5 for _, arq in arquivos)
 
     if not hash_disponivel or total_duplicados == 0:
-        # se não tem hash ou não achou duplicado, manda "vazio"
         total_duplicados = 0
         espaco_duplicado_gb = 0
     else:
@@ -180,14 +218,17 @@ def home(request):
         "outros_gb": outros_gb,
         "hash_disponivel": hash_disponivel,
         "total_duplicados": total_duplicados,
+        "estensoes": extensoes,
         "espaco_duplicado_gb": espaco_duplicado_gb,
         "espaco_ocupado_gb": espaco_ocupado_gb,
         "espaco_livre_gb": espaco_livre_gb,
         "bucket_maior_1gb_gb": bucket_maior_1gb_gb,
         "bucket_100mb_1gb_gb": bucket_100mb_1gb_gb,
         "bucket_menor_100mb_gb": bucket_menor_100mb_gb,
+        "ext_buckets": ext_buckets_gb, 
     }
     return render(request, "home/home.html", contexto)
+
 
 def pesquisar(request):
     return render(request,"abas/buscar_arquivos.html")

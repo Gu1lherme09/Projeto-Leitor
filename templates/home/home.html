@@ -156,7 +156,7 @@
             <div class="filters">
                 <select class="input" id="filtro-extensao" data-fancy="js fancy-select" data-fancy-label="Extensão">
                     <option value="">Extensão</option>
-                    {% for item in top_extensoes %}
+                    {% for item in estensoes %}
                         <option value="{{ item.ext }}">.{{ item.ext }}</option>
                     {% endfor %}
                 </select>
@@ -222,7 +222,7 @@
         </div>
     </div>
     {{ top_extensoes|json_script:"ext-data" }}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    {{ ext_buckets|json_script:"ext-buckets" }}
     <script>
     document.addEventListener("DOMContentLoaded", function () {
         const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
@@ -247,9 +247,6 @@
             };
         }
 
-        // =========================
-        // GRÁFICO PIZZA
-        // =========================
         const pizzaCanvas = document.getElementById("pizzaChart");
         let pizzaChart = null;
 
@@ -335,46 +332,37 @@
         if (extCanvas) {
             const extCtx = extCanvas.getContext("2d");
             const totalGB = parseFloat("{{ total_tamanho_gb|default:'0' }}") || 0;
+
+            // buckets globais (qualquer extensão)
             const bucketMaior1GB   = parseFloat("{{ bucket_maior_1gb_gb|default:'0' }}") || 0;
             const bucket100MB1GB   = parseFloat("{{ bucket_100mb_1gb_gb|default:'0' }}") || 0;
             const bucketMenor100MB = parseFloat("{{ bucket_menor_100mb_gb|default:'0' }}") || 0;
 
-            const extDataEl = document.getElementById("ext-data");
-            const extSubtitle = document.getElementById("extChartSubtitle");
-            let extData = [];
-
-            if (extDataEl) {
+            // buckets por extensão (gt_1gb, between_100mb_1gb, lt_100mb)
+            const extBucketsEl = document.getElementById("ext-buckets");
+            let extBuckets = {};
+            if (extBucketsEl) {
                 try {
-                    extData = JSON.parse(extDataEl.textContent);
+                    extBuckets = JSON.parse(extBucketsEl.textContent);
                 } catch (e) {
-                    console.error("Erro ao parsear top_extensoes:", e);
+                    console.error("Erro ao parsear ext_buckets:", e);
                 }
             }
 
-            function getInfoPorExtensao(extCode) {
-                if (!extCode) {
-                    return {
-                        labels: ["Total do cache"],
-                        data: [totalGB],
-                        subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
-                    };
-                }
-                const item = extData.find(e => e.ext === extCode);
-                const valorExt = item ? item.gb : 0;
-                const outros = Math.max(totalGB - valorExt, 0);
-                return {
-                    labels: [`.${extCode}`, "Outros"],
-                    data: [valorExt, outros],
-                    subtitle: `.${extCode}: ${valorExt.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
-                };
-            }
+            const extSubtitle = document.getElementById("extChartSubtitle");
 
-            function getInfoPorTamanho(bucketKey) {
+            const bucketLabelMap = {
+                "gt_1gb": "> 1 GB",
+                "between_100mb_1gb": "100 MB – 1 GB",
+                "lt_100mb": "< 100 MB",
+            };
+
+            function getInfoGlobalPorTamanho(bucketKey) {
                 if (!bucketKey) {
                     return {
                         labels: ["Total do cache"],
                         data: [totalGB],
-                        subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
+                        subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`,
                     };
                 }
 
@@ -383,7 +371,7 @@
                     return {
                         labels: ["> 1 GB", "Outros"],
                         data: [bucketMaior1GB, outros],
-                        subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                        subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
                     };
                 }
 
@@ -392,7 +380,7 @@
                     return {
                         labels: ["100 MB – 1 GB", "Outros"],
                         data: [bucket100MB1GB, outros],
-                        subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                        subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
                     };
                 }
 
@@ -401,18 +389,62 @@
                     return {
                         labels: ["< 100 MB", "Outros"],
                         data: [bucketMenor100MB, outros],
-                        subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`
+                        subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
                     };
                 }
 
                 return {
                     labels: ["Total do cache"],
                     data: [totalGB],
-                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`
+                    subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`,
                 };
             }
 
-            function initExtChart(info) {
+            function getInfo(extCode, bucketKey) {
+                // nada selecionado → total
+                if (!extCode && !bucketKey) {
+                    return getInfoGlobalPorTamanho(null);
+                }
+
+                // só tamanho → bucket global (qualquer extensão)
+                if (!extCode && bucketKey) {
+                    return getInfoGlobalPorTamanho(bucketKey);
+                }
+
+                const buckets = extBuckets[extCode] || {
+                    gt_1gb: 0,
+                    between_100mb_1gb: 0,
+                    lt_100mb: 0,
+                };
+                const extTotal =
+                    (buckets.gt_1gb || 0) +
+                    (buckets.between_100mb_1gb || 0) +
+                    (buckets.lt_100mb || 0);
+
+                // só extensão → total da extensão vs outros
+                if (extCode && !bucketKey) {
+                    const outros = Math.max(totalGB - extTotal, 0);
+                    return {
+                        labels: [`.${extCode}`, "Outros"],
+                        data: [extTotal, outros],
+                        subtitle: `.${extCode}: ${extTotal.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                    };
+                }
+
+                // extensão + tamanho → só aquela faixa daquela extensão
+                const val = buckets[bucketKey] || 0;
+                const outros = Math.max(totalGB - val, 0);
+                const faixaLabel = bucketLabelMap[bucketKey] || bucketKey;
+                const label = `.${extCode} (${faixaLabel})`;
+
+                return {
+                    labels: [label, "Outros"],
+                    data: [val, outros],
+                    subtitle: `${label}: ${val.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                };
+            }
+
+            function renderExtChart(info) {
                 if (extSubtitle) {
                     extSubtitle.textContent = info.subtitle;
                 }
@@ -471,7 +503,8 @@
                 }
             }
 
-            initExtChart(getInfoPorExtensao(null));
+            // estado inicial → total
+            renderExtChart(getInfo(null, null));
 
             const filtroExtensao = document.getElementById("filtro-extensao");
             const filtroTamanho  = document.getElementById("filtro-tamanho");
@@ -482,20 +515,14 @@
                     const extCode = filtroExtensao ? filtroExtensao.value : "";
                     const sizeKey = filtroTamanho  ? filtroTamanho.value  : "";
 
-                    let info;
-                    if (extCode) {
-                        info = getInfoPorExtensao(extCode);
-                    } else if (sizeKey) {
-                        info = getInfoPorTamanho(sizeKey);
-                    } else {
-                        info = getInfoPorExtensao(null);
-                    }
-
-                    initExtChart(info);
+                    const info = getInfo(
+                        extCode || null,
+                        sizeKey || null
+                    );
+                    renderExtChart(info);
                 });
             }
         }
-
         // =========================
         // MODAL NOVA VARREDURA + PROGRESSO CIRCULAR + CONFIRM
         // =========================

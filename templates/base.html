@@ -27,6 +27,82 @@
 {# JS global (ex: chart.js) #}
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-{% block extra_js %}{% endblock %}
+<script>
+    // valores vindos do context processor (disponíveis em TODAS as páginas)
+    const CACHE_STALE   = {{ cache_stale|yesno:"true,false" }};
+    const CACHE_AGE_MIN = {{ cache_age_minutes|default:"0" }};
+
+    document.addEventListener("DOMContentLoaded", function () {
+        try {
+            // se cache NÃO está velho, não faz nada
+            if (!CACHE_STALE) return;
+
+            // já mostramos esse aviso nesta aba? (sessionStorage é por aba)
+            if (sessionStorage.getItem("cacheWarnShown")) return;
+
+            // marca pra não repetir enquanto a aba estiver aberta
+            sessionStorage.setItem("cacheWarnShown", "1");
+
+            let minutesText;
+
+            if (CACHE_AGE_MIN == null) {
+                minutesText = "tempo de cache indisponível";
+
+            } else if (CACHE_AGE_MIN < 1) {
+                minutesText = "agora mesmo";
+
+            } else if (CACHE_AGE_MIN < 60) {
+                // 1 – 59 min
+                minutesText = `há ${CACHE_AGE_MIN} minuto(s)`;
+
+            } else if (CACHE_AGE_MIN < 1440) {
+                // 1 – 23 horas (1440 min = 24h)
+                const hours = Math.floor(CACHE_AGE_MIN / 60);
+                minutesText = `há ${hours} hora(s)`;
+
+            } else {
+                // 1+ dias
+                const days = Math.floor(CACHE_AGE_MIN / 1440);
+                minutesText = `há ${days} dia(s)`;
+            }
+
+            const goHomeUrl = "{% url 'home' %}";
+
+            const doConfirm = async () => {
+                if (typeof window.showConfirm === "function") {
+                    const ok = await window.showConfirm({
+                        title: "Cache desatualizado",
+                        text:
+                            `O cache atual foi gerado ${minutesText}. ` +
+                            `É recomendado refazer a varredura na tela inicial.`,
+                        confirmLabel: "Ir para início",
+                        cancelLabel: "Continuar aqui",
+                        variant: "warning",
+                    });
+
+                    if (ok) {
+                        window.location.href = goHomeUrl;
+                    }
+                } else {
+                    // fallback caso showConfirm ainda não tenha carregado
+                    const ok = window.confirm(
+                        `O cache atual foi gerado ${minutesText}.\n\n` +
+                        `Deseja ir para a tela inicial para refazer a varredura?`
+                    );
+                    if (ok) {
+                        window.location.href = goHomeUrl;
+                    }
+                }
+            };
+
+            // espera um pouquinho a página montar antes de abrir o modal
+            setTimeout(doConfirm, 400);
+        } catch (e) {
+            console.warn("Erro ao exibir aviso de cache desatualizado:", e);
+        }
+    });
+</script>
+
 </body>
 </html>
+

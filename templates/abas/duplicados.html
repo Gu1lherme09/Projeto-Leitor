@@ -80,7 +80,7 @@
     <article class="card center">
         <header class="card-header">
             <div>
-                <h2>Extensões (grupos visíveis)</h2>
+                <h2>Únicos vs repetidos</h2>
                 <span class="card-subtitle" id="dup-counter">
                     Calculando estatísticas...
                 </span>
@@ -138,7 +138,7 @@
         </div>
         <div class="search-field">
             <label for="filtro_pasta">Filtrar por pasta</label>
-            <input class="input" id="filtro_pasta" type="text" placeholder="Parte do caminho da pasta">
+            <input class="input" id="filtro_pasta" type="text" placeholder="pesquise pelo nome da pasta ou caminho completo">
         </div>
     </div>
 
@@ -210,13 +210,28 @@
     {% endif %}
 </section>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 document.addEventListener("DOMContentLoaded", function () {
     const filtroExt   = document.getElementById("filtro_ext");
     const filtroPasta = document.getElementById("filtro_pasta");
     const infoEl      = document.getElementById("dup-info");
     const formRecalc  = document.getElementById("form-recalcular-duplicados");
+
+    function compactFolderLabel(label, maxLen = 18) {
+        if (!label) return "(raiz)";
+        label = label.trim();
+
+        if (label.length <= maxLen) {
+            return label;
+        }
+
+        const half = Math.floor((maxLen - 1) / 2);
+        const start = label.slice(0, half);
+        const end   = label.slice(-half);
+
+        return start + "…" + end;   // exemplo: "Microsoft3D…2544.0_x64_"
+    }
+
 
     // =========================
     // CRONÔMETRO / LOADER DE INTEGRIDADE (OPCIONAL)
@@ -313,27 +328,23 @@ document.addEventListener("DOMContentLoaded", function () {
 
                 window.enqueueNotification?.({
                     title: "Recalculando duplicados",
-                    text: "Estamos analisando o cache em busca de duplicados. Você pode continuar usando o sistema.",
+                    text: "Estamos analisando o cache em busca de duplicados. Aguarde enquanto está sendo feito a análise",
                     variant: "info",
                 });
 
                 ativarLoaderIntegridade();
                 formRecalc.submit();
             } else {
-                // sem showConfirm: só ativa loader e envia
                 ativarLoaderIntegridade();
             }
         });
     }
 
-    // =========================
-    // SE NÃO TIVER GRUPOS, PARA POR AQUI
-    // =========================
     const groupsContainer = document.querySelector('#dup-groups');
     if (!groupsContainer) return;
 
     // =========================
-    // FUNÇÕES AUXILIARES PARA ESTATÍSTICAS / GRÁFICOS
+    // COLETA DE ESTATÍSTICAS DOS GRUPOS VISÍVEIS
     // =========================
     function collectStatsFromVisibleGroups() {
         const visibleGroups = Array.from(
@@ -351,7 +362,12 @@ document.addEventListener("DOMContentLoaded", function () {
 
         visibleGroups.forEach(group => {
             const badgeExt = group.querySelector(".badge-ext");
-            const extLabel = badgeExt ? badgeExt.textContent.trim() : "desconhecido";
+            let extLabel = badgeExt ? badgeExt.textContent.trim() : "desconhecido";
+
+            // arquivos sem extensão aparecem como "."
+            if (extLabel === "." || extLabel === "") {
+                extLabel = "Sem extensão";  // ou "Outros", se preferir
+            }
 
             const rows = Array.from(group.querySelectorAll("tbody tr"))
                 .filter(r => r.style.display !== "none"); // respeita filtros de texto
@@ -362,16 +378,30 @@ document.addEventListener("DOMContentLoaded", function () {
             totalFiles += rows.length;
 
             // pasta baseada na primeira linha visível
+            // DEPOIS – usa só o nome da última pasta
             const firstRow = rows[0];
             const pathCell = firstRow.querySelector(".col-path");
             let path = pathCell ? pathCell.textContent.trim() : "";
-            let folderLabel = path;
 
+            // diretório do arquivo
+            let dirPath = path;
             const lastSep = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
-            if (lastSep > 0) folderLabel = path.slice(0, lastSep);
+            if (lastSep > 0) {
+                dirPath = path.slice(0, lastSep);
+            }
 
-            if (folderLabel.length > 50) {
-                folderLabel = "…" + folderLabel.slice(-50);
+            // nome da pasta (último segmento do caminho)
+            let folderLabel = dirPath;
+            if (dirPath) {
+                const prevSep = Math.max(dirPath.lastIndexOf("\\"), dirPath.lastIndexOf("/"));
+                if (prevSep >= 0) {
+                    folderLabel = dirPath.slice(prevSep + 1);
+                }
+            }
+
+            // fallback
+            if (!folderLabel) {
+                folderLabel = "(raiz)";
             }
 
             rows.forEach((row, idx) => {
@@ -434,7 +464,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const BYTES_IN_GB = 1024 * 1024 * 1024;
         const baseGB = stats.baseBytes / BYTES_IN_GB;
         const dupGB  = stats.dupBytes  / BYTES_IN_GB;
-        const totalGB = baseGB + dupGB;
 
         // contador no subtítulo do primeiro card (Extensões)
         const counterEl = document.getElementById("dup-counter");
@@ -444,15 +473,17 @@ document.addEventListener("DOMContentLoaded", function () {
                 `(${stats.groupCount} grupo(s), ${stats.dupCount} duplicado(s) extra).`;
         }
 
-        // ----- DONUT: impacto (base x duplicados extras em GB) -----
+        // =========================
+        // 1) PIZZA: Impacto (arquivos únicos x duplicados)
+        // =========================
         if (wasteCtx) {
-            const data = totalGB > 0 ? [baseGB, dupGB] : [0, 0];
+            const data = [stats.baseCount, stats.dupCount];
 
             if (!wasteChart) {
                 wasteChart = new Chart(wasteCtx, {
                     type: "doughnut",
                     data: {
-                        labels: ["Arquivos base", "Duplicados extras"],
+                        labels: ["Arquivos únicos", "Arquivos duplicados"],
                         datasets: [{
                             data: data,
                         }]
@@ -467,7 +498,7 @@ document.addEventListener("DOMContentLoaded", function () {
                             tooltip: {
                                 callbacks: {
                                     label: ctx =>
-                                        `${ctx.label}: ${ctx.parsed.toFixed(2)} GB`
+                                        `${ctx.label}: ${ctx.raw} arquivo(s)`
                                 }
                             }
                         }
@@ -479,7 +510,9 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // ----- COLUNA: EXTENSÃO x GB -----
+        // =========================
+        // 2) COLUNA: EXTENSÃO x GB
+        // =========================
         if (extCtx) {
             const extData = buildDatasetFromMap(stats.byExtSize);
 
@@ -518,46 +551,43 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // ----- COLUNA: PASTA x GB -----
+        // =========================
+        // 3) PIZZA: PASTAS PRINCIPAIS (GB)
+        //    – usa apenas os grupos VISÍVEIS (já filtrados por pasta/ext)
+        // =========================
         if (pastaCtx) {
             const pastaData = buildDatasetFromMap(stats.byFolderSize);
 
+            // encurta os nomes das pastas para não quebrar o layout
+            const pastaLabels = pastaData.labels.map(lbl => compactFolderLabel(lbl));
+
             if (!pastaChart) {
                 pastaChart = new Chart(pastaCtx, {
-                    type: "bar",
+                    type: "doughnut",
                     data: {
-                        labels: pastaData.labels,
+                        labels: pastaLabels,
                         datasets: [{
                             data: pastaData.data,
                         }]
                     },
                     options: {
                         responsive: true,
+                        cutout: "60%",
                         plugins: {
-                            legend: { display: false },
+                            legend: {
+                                position: "bottom",
+                            },
                             tooltip: {
                                 callbacks: {
                                     label: ctx =>
-                                        `${ctx.parsed.toFixed(2)} GB`
-                                }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { callback: v => v + " GB" }
-                            },
-                            x: {
-                                ticks: {
-                                    maxRotation: 30,
-                                    minRotation: 0,
+                                        `${ctx.label}: ${ctx.parsed.toFixed(2)} GB`
                                 }
                             }
                         }
                     }
                 });
             } else {
-                pastaChart.data.labels = pastaData.labels;
+                pastaChart.data.labels = pastaLabels;
                 pastaChart.data.datasets[0].data = pastaData.data;
                 pastaChart.update();
             }

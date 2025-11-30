@@ -25,28 +25,43 @@ def _humanize_delta(delta):
 
 def cache_info(request):
     """
-    Devolve algo como: "há 5 min", "há 2 h", "há 1 d" etc.
-    Fica disponível no template como: cache_last_updated_label
+    Devolve, por exemplo:
+      - cache_last_updated_label: "há 5 min", "há 2 h", "há 1 d"
+      - cache_age_minutes: idade do cache em minutos (int ou None)
+      - cache_stale: True se o cache passou de 30 minutos
     """
     label = "indisponível"
+    cache_age_minutes = None
+    cache_stale = False
 
     try:
         with CACHE_JSON_PATH.open(encoding="utf-8") as f:
             data = json.load(f)
 
-        raw = data.get("data") 
+        raw = data.get("data")  # string no formato "%d_%m_%Y,%H:%M"
         if raw:
             dt = datetime.strptime(raw, "%d_%m_%Y,%H:%M")
-            # deixa aware no timezone do Django
             dt = timezone.make_aware(dt, timezone.get_default_timezone())
 
             now = timezone.now()
             delta = now - dt
+
+            # texto amigável que você já usava
             label = f"há {_humanize_delta(delta)}"
+
+            # idade em minutos
+            cache_age_minutes = max(0, int(delta.total_seconds() // 60))
+
+            # considerado "velho" se passou de 30 minutos
+            if cache_age_minutes >= 30:
+                cache_stale = True
+
     except Exception:
-        # se der qualquer pau, mantemos "indisponível"
+        # se der qualquer pau, deixamos os defaults
         pass
 
     return {
         "cache_last_updated_label": label,
+        "cache_age_minutes": cache_age_minutes,
+        "cache_stale": cache_stale,
     }
