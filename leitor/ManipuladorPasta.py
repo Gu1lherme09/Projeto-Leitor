@@ -14,7 +14,7 @@ class ManipuladorPasta:
         self.no_raiz = None
         self.carregar_estrutura(interativo=interativo)
 
-    
+        
     def carregar_estrutura(self, forcar_recriacao=False, interativo=True):
         """Carrega estrutura do cache ou cria nova árvore."""
         pasta_cache = os.path.join(os.getcwd(), "cache")
@@ -26,40 +26,20 @@ class ManipuladorPasta:
                 with open(cache_file, "r", encoding="utf-8") as f:
                     data = json.load(f)
 
-                timestamp_str = data.get("data", "")
-                dt = datetime.strptime(timestamp_str, '%d_%m_%Y,%H:%M')
-                dt = dt.replace(tzinfo=timezone(timedelta(hours=-3)))
-                now = datetime.now(timezone(timedelta(hours=-3)))
-                age_min = (now - dt).total_seconds() / 60
-
-                if age_min <= 30:
-                    self.raiz = Pasta.from_dict(data["estrutura"])
-                    self.no_raiz = NoPasta(self.raiz)
-                    print("✅ Estrutura carregada do cache.")
-                    return
-                else:
-                    if interativo:
-                        resposta = input(f"O cache tem {age_min:.1f} minutos. Deseja refazer? (s/n): ")
-                        if resposta.lower() not in ['s', 'y', 'sim']:
-                            self.raiz = Pasta.from_dict(data["estrutura"])
-                            self.no_raiz = NoPasta(self.raiz)
-                            print("✅ Estrutura carregada do cache antigo.")
-                            return
-                    else:
-                        # modo web: usa cache antigo SEM perguntar
-                        self.raiz = Pasta.from_dict(data["estrutura"])
-                        self.no_raiz = NoPasta(self.raiz)
-                        print("✅ Estrutura carregada do cache (modo web).")
-                        return
+                # Apenas carrega o cache sem perguntar nada
+                self.raiz = Pasta.from_dict(data["estrutura"])
+                self.no_raiz = NoPasta(self.raiz)
+                print("✅ Estrutura carregada do cache.")
+                return
 
             except Exception as e:
                 print(f"Erro ao carregar cache: {e}")
 
+        # Se não tem cache ou forçado a recriar
         self.raiz = Pasta(self.caminho)
         self.no_raiz = NoPasta(self.raiz)
         self.salvar_cache()
         print("✅ Cache recriado.")
-
 
     def salvar_cache(self, extra_meta=None):
         pasta_cache = os.path.join(os.getcwd(), "cache")

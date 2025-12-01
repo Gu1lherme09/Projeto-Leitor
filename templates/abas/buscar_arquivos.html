@@ -157,7 +157,7 @@
                         placeholder="Ex: 50">
                     <div class="tooltip" style="display: none">
                         <span class="help-icon">?</span>
-                         <span class="tooltiptext">
+                        <span class="tooltiptext">
                             Digite o valor de acordo com a unidade escolhida em "Exibição".<br><br>
                             <strong>Exemplos:</strong><br>
                             • <strong>Bytes</strong>: 1.6000 → ~1.6 MB<br>
@@ -181,8 +181,7 @@
             </div>
             <div class="search-field" style="display: none">
                 <label for="caminho">Caminho base</label>
-                <input class="input" id="caminho" name="caminho" type="text"
-                       placeholder="Ex: C:\Users\SeuUsuario\Downloads">
+                <input class="input" id="caminho" name="caminho" type="text" placeholder="Ex: C:\Users\SeuUsuario\Downloads">
             </div>
             <div class="search-field checkbox-inline" style="display:none">
                 <label class="checkbox-label">
@@ -198,42 +197,72 @@
         </div>
     </form>
 </section>
+<section class="grid-3" style="margin-top: 18px;">
+                <article class="card center">
+                    <header class="card-header">
+                        <div>
+                            <h2>Extesões</h2>
+                            <span class="card-subtitle" id="dup-counter">
+                                Calculando estatísticas...
+                            </span>
+                        </div>
+                    </header>
+                    <div class="donut-container">
+                        <div class="donut" style="border:none; width:220px; height:220px;">
+                            <canvas id="dupExtChart"></canvas>
+                        </div>
+                    </div>
+                </article>
 
-<section class="card" id="resultadosSection" style="display:none;">
-    <div id="dup-groups">
-        <div class="duplicate-group">
-            <header class="card-header">
-                <h2>Resultados</h2>
-                <span class="card-subtitle">Arquivos que atendem aos filtros informados.</span>
-            </header>
+                <article class="card center">
+                    <header class="card-header">
+                        <h2>Pastas principais</h2>
+                        <span class="card-subtitle">
+                            Top pastas dos grupos visíveis
+                        </span>
+                    </header>
+                    <div class="donut-container">
+                        <div class="donut" style="border:none; width:220px; height:220px;">
+                            <canvas id="dupFolderChart"></canvas>
+                        </div>
+                    </div>
+                </article>
+            </section>
+            <section class="card" id="resultadosSection" style="display:none;">
+                <div id="dup-groups">
+                    <div class="duplicate-group">
+                        <header class="card-header">
+                            <h2>Resultados</h2>
+                            <span class="card-subtitle">Arquivos que atendem aos filtros informados.</span>
+                        </header>
 
-            <div class="table-wrapper">
-                <table class="table">
-                    <thead>
-                        <tr>
-                            <th>Nome</th>
-                            <th>Caminho completo</th>
-                            <th>Extensão</th>
-                            <th>Tamanho</th>
-                            <th>Hash MD5</th>
-                            {% comment %} <th>Última modificação</th> {% endcomment %}
-                            <th>Origem</th>
-                        </tr>
-                    </thead>
-                    <tbody></tbody>
-                </table>
-            </div>
-        </div>
-    </div>
+                        <div class="table-wrapper">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Nome</th>
+                                        <th>Caminho completo</th>
+                                        <th>Extensão</th>
+                                        <th>Tamanho</th>
+                                        <th>Hash MD5</th>
+                                        {% comment %} <th>Última modificação</th> {% endcomment %}
+                                        <th>Origem</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
-    <div class="table-footer table-footer--dup">
-        <span id="resultadoInfo" class="resultado-info">
-            Nenhuma busca realizada ainda.
-        </span>
+                <div class="table-footer table-footer--dup">
+                    <span id="resultadoInfo" class="resultado-info">
+                        Nenhuma busca realizada ainda.
+                    </span>
 
-        <div id="dup-pagination"></div>
-    </div>
-</section>
+                    <div id="dup-pagination"></div>
+                </div>
+            </section>
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
@@ -250,6 +279,213 @@ document.addEventListener("DOMContentLoaded", function () {
     const modalNenhum       = document.getElementById("modal-nenhum-resultado");
 
     let cardFilterInstance = null; 
+
+    // ----------------------------
+    // HELPERS PARA GRÁFICOS
+    // ----------------------------
+    function normalizarBytes(valor) {
+        if (valor === null || valor === undefined) return 0;
+        if (typeof valor === "number") return valor;
+        const limpo = valor.toString().replace(/[^\d]/g, "");
+        if (!limpo) return 0;
+        return parseInt(limpo, 10) || 0;
+    }
+
+    function compactFolderLabel(label, maxLen = 18) {
+        if (!label) return "(raiz)";
+        label = label.trim();
+        if (label.length <= maxLen) return label;
+
+        const half  = Math.floor((maxLen - 1) / 2);
+        const start = label.slice(0, half);
+        const end   = label.slice(-half);
+        return start + "…" + end;
+    }
+
+    function coletarStatsResultados() {
+        const byExtCount   = new Map();  // ext -> quantidade de arquivos
+        const byFolderSize = new Map();  // pasta -> bytes
+        let totalFiles     = 0;
+        let totalBytes     = 0;
+        let cacheBytes     = 0;
+        let discoBytes     = 0;
+
+        resultados.forEach((arq) => {
+            const ext = (arq.extensao || "sem_ext").toLowerCase();
+            const bytes = normalizarBytes(arq.tamanho);
+            let caminho = arq.caminho || "";
+
+            totalFiles++;
+            totalBytes += bytes;
+
+            // contagem por extensão
+            byExtCount.set(ext, (byExtCount.get(ext) || 0) + 1);
+
+            // pasta (diretório) a partir do caminho completo
+            let dirPath = caminho;
+            const lastSep = Math.max(dirPath.lastIndexOf("\\"), dirPath.lastIndexOf("/"));
+            if (lastSep > 0) {
+                dirPath = dirPath.slice(0, lastSep);
+            }
+            if (!dirPath) dirPath = "(raiz)";
+
+            byFolderSize.set(dirPath, (byFolderSize.get(dirPath) || 0) + bytes);
+
+            // origem
+            const origem = (arq.origem || "").toLowerCase();
+            if (origem === "cache") {
+                cacheBytes += bytes;
+            } else {
+                discoBytes += bytes;
+            }
+        });
+
+        return {
+            byExtCount,
+            byFolderSize,
+            totalFiles,
+            totalBytes,
+            cacheBytes,
+            discoBytes,
+        };
+    }
+
+    function buildDatasetFromSizeMap(map, maxItems = 6) {
+        const entries = Array.from(map.entries())
+            .sort((a, b) => b[1] - a[1])
+            .slice(0, maxItems);
+
+        const BYTES_IN_GB = 1024 * 1024 * 1024;
+        const BYTES_IN_MB = 1024 * 1024;
+
+        const maxBytes = entries.length ? entries[0][1] : 0;
+
+        let unit    = "GB";
+        let divisor = BYTES_IN_GB;
+
+        if (maxBytes > 0 && maxBytes < BYTES_IN_GB / 10) {
+            unit    = "MB";
+            divisor = BYTES_IN_MB;
+        }
+
+        return {
+            labels: entries.map(e => e[0]),
+            data:   entries.map(e => e[1] / divisor),
+            unit,
+        };
+    }
+
+    const extCtx   = document.getElementById("dupExtChart")?.getContext("2d");
+    const pastaCtx = document.getElementById("dupFolderChart")?.getContext("2d");
+    const wasteCtx = document.getElementById("dupWasteChart")?.getContext("2d");
+
+    let extChart   = null;
+    let pastaChart = null;
+    let wasteChart = null;
+
+        function updateChartsFromResultados() {
+        const stats = coletarStatsResultados();
+        const counterEl = document.getElementById("dup-counter");
+
+        if (counterEl) {
+            if (!stats.totalFiles) {
+                counterEl.textContent = "Nenhum arquivo encontrado.";
+            } else {
+                counterEl.textContent =
+                    `${stats.totalFiles} arquivo(s) encontrado(s).`;
+            }
+        }
+
+        // --- Gráfico 1: distribuição por extensão (quantidade) ---
+        if (extCtx) {
+            const extEntries = Array.from(stats.byExtCount.entries())
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 6);
+
+            const labels = extEntries.length
+                ? extEntries.map(([ext]) => ext.startsWith(".") ? ext : "." + ext)
+                : ["Sem dados"];
+
+            const data = extEntries.length
+                ? extEntries.map(([, qtd]) => qtd)
+                : [1];
+
+            if (!extChart) {
+                extChart = new Chart(extCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: "60%",
+                        plugins: {
+                            legend: { position: "bottom" },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const label = ctx.label || "";
+                                        const val   = ctx.parsed || 0;
+                                        return `${label}: ${val} arquivo(s)`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                extChart.data.labels = labels;
+                extChart.data.datasets[0].data = data;
+                extChart.update();
+            }
+        }
+
+        // --- Gráfico 2: pastas principais (tamanho) ---
+        if (pastaCtx) {
+            const pastaData = buildDatasetFromSizeMap(stats.byFolderSize);
+            const pastaLabels = pastaData.labels.map(lbl => compactFolderLabel(lbl));
+
+            const labels = pastaLabels.length ? pastaLabels : ["Sem dados"];
+            const data   = pastaData.data.length ? pastaData.data : [1];
+            const unit   = pastaData.unit;
+
+            if (!pastaChart) {
+                pastaChart = new Chart(pastaCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels,
+                        datasets: [{
+                            data,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: "60%",
+                        plugins: {
+                            legend: { position: "bottom" },
+                            tooltip: {
+                                callbacks: {
+                                    label: (ctx) => {
+                                        const label = ctx.label || "";
+                                        const val   = ctx.parsed || 0;
+                                        return `${label}: ${val.toFixed(2)} ${unit}`;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                });
+            } else {
+                pastaChart.data.labels = labels;
+                pastaChart.data.datasets[0].data = data;
+                pastaChart.update();
+            }
+        }
+    }
+
 
     // ----------------------------
     // DEBOUNCE
@@ -585,6 +821,8 @@ document.addEventListener("DOMContentLoaded", function () {
         } else {
             cardFilterInstance.refresh();
         }
+
+        updateChartsFromResultados();
     }
 
     // ----------------------------
