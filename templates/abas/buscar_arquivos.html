@@ -1,89 +1,207 @@
+{% extends "base.html" %}
 {% load static %}
-<!DOCTYPE html>
-<html lang="pt-br">
-<head>
-    <meta charset="UTF-8" />
-    <title>Leitor de Disco - Buscar Arquivos</title>
-    <link rel="stylesheet" href="{% static 'css/home.css' %}">
-    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
-</head>
-<body>
-<div class="app">
-    {% include 'partials/bar.html' %}
-    <!-- CONTEÚDO PRINCIPAL -->
-    <main class="main">
-        <header class="main-header">
-            <div>
-                <h1>Buscar por Arquivos</h1>
-                <p class="subtitle">Localize arquivos rapidamente pelo caminho, nome, extensão ou tamanho.</p>
+
+{% block title %}Leitor de Disco - Buscar Arquivos{% endblock %}
+
+{% block content %}
+
+<header class="main-header">
+    <div>
+        <h1>Buscar por Arquivos</h1>
+        <p class="subtitle">Localize arquivos rapidamente pelo caminho, nome, extensão ou tamanho.</p>
+    </div>
+    <div class="header-actions">
+        <button class="btn primary" style="display:none">Nova varredura</button>
+    </div>
+</header>
+
+<section class="card">
+    <header class="card-header">
+        <h2>Filtros de busca</h2>
+        <span class="card-subtitle">Defina os critérios para localizar arquivos específicos.</span>
+    </header>
+
+    <form class="search-form">
+        <div class="search-row">
+            
+            <div class="search-field">
+                <label for="nome">Nome do arquivo</label>
+                <input class="input" id="nome" name="nome" type="text"
+                       placeholder="Parte do nome, ex: relatório">
             </div>
-            <div class="header-actions">
-                <button class="btn primary">Nova varredura</button>
+            <div class="search-field">
+                <label for="hash">Hash (MD5)</label>
+                <input class="input" id="hash" name="hash" type="text"
+                       placeholder="Cole o MD5 completo aqui">
             </div>
-        </header>
+        </div>
 
-        <!-- FORMULÁRIO DE BUSCA -->
-        <section class="card">
-            <header class="card-header">
-                <h2>Filtros de busca</h2>
-                <span class="card-subtitle">Defina os critérios para localizar arquivos específicos.</span>
-            </header>
+        <div class="search-row">
+            <div class="search-field">
+                <label for="extensao">Extensão</label>
+                <select class="input" id="extensao" name="extensao" data-fancy="js fancy-select" data-fancy-label="Extensão">
+                    <option value="">-- Selecionar --</option>
+                    <option value="txt">.txt</option>
+                    <option value="pdf">.pdf</option>
+                    <option value="html">.html</option>
+                    <option value="xlsx">.xlsx</option>
+                    <option value="csv">.csv</option>
+                    <option value="docx">.docx</option>
+                    <option value="png">.png</option>
+                    <option value="jpg">.jpg</option>
+                    <option value="mp4">.mp4</option>
+                    <option value="mp3">.mp3</option>
+                    <option value="exe">.exe</option>
+                    <option value="zip">.zip</option>
+                    <option value="rar">.rar</option>
+                    <option value="exe">.exe</option>
+                    <option value="py">.py</option>
+                    <option value="po">.po</option>
+                    <option value="mo">.mo</option>
+                    <option value="js">.js</option>
+                    <option value="java">.java</option>
+                    <option value="c">.c</option>
+                    <option value="css">.css</option>
+                </select>
+            </div>
 
-            <form class="search-form">
-                <div class="search-row">
-                    <div class="search-field">
-                        <label for="caminho">Caminho base</label>
-                        <input class="input" id="caminho" name="caminho" type="text"
-                               placeholder="Ex: C:\Users\SeuUsuario\Downloads">
-                    </div>
-                    <div class="search-field">
-                        <label for="nome">Nome do arquivo</label>
-                        <input class="input" id="nome" name="nome" type="text"
-                               placeholder="Parte do nome, ex: relatório">
+            <style>
+                /* Tooltip bonitinho com ícone de ajuda */
+                .help-icon {
+                    display: inline-flex;
+                    align-items: center;
+                    justify-content: center;
+                    width: 17px;
+                    height: 17px;
+                    margin-left: 8px;
+                    background: #64748b;
+                    color: white;
+                    font-size: 11px;
+                    font-weight: bold;
+                    border-radius: 50%;
+                    cursor: help;
+                    user-select: none;
+                    transition: background 0.2s;
+                    background 0.2s;
+                }
+
+                .help-icon:hover {
+                    background: #475569;
+                }
+
+                .tooltip {
+                    position: relative;
+                    display: inline-block;
+                }
+
+                .tooltip .tooltiptext {
+                    visibility: hidden;
+                    width: 280px;
+                    background-color: #1e293b;
+                    color: #fff;
+                    text-align: left;
+                    border-radius: 8px;
+                    padding: 12px;
+                    position: absolute;
+                    z-index: 1000;
+                    bottom: 130%;
+                    left: 50%;
+                    margin-left: -140px;
+                    opacity: 0;
+                    transition: opacity 0.3s, visibility 0.3s;
+                    font-size: 13px;
+                    line-height: 1.5;
+                    box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+                    pointer-events: none;
+                }
+
+                .tooltip .tooltiptext::after {
+                    content: "";
+                    position: absolute;
+                    top: 100%;
+                    left: 50%;
+                    margin-left: -6px;
+                    border: 6px solid transparent;
+                    border-top-color: #1e293b;
+                }
+
+                .tooltip:hover .tooltiptext {
+                    visibility: visible;
+                    opacity: 1;
+                }
+            </style>
+
+            <div class="search-field">
+                <label for="tamanho_min">Tamanho mínimo</label>
+                <div style="display: flex; align-items: center;">
+                    <input class="input" id="tamanho_min" name="tamanho_min" type="text"
+                        placeholder="Ex: 1.6">
+                    <div class="tooltip">
+                        <span class="help-icon">?</span>
+                        <span class="tooltiptext">
+                            Digite o valor de acordo com a unidade escolhida em "Exibição".<br><br>
+                            <strong>Exemplos:</strong><br>
+                            • <strong>Bytes</strong>: 1.600.000 → ~1.6 MB<br>
+                            • <strong>Megabytes</strong>: 1.6 ou 1,6 → 1.6 MB<br>
+                            • <strong>Gigabytes</strong>: 0,5 → 500 MB<br><br>
+                            <em>Dica: use Megabytes para valores normais!</em>
+                        </span>
                     </div>
                 </div>
+            </div>
 
-                <div class="search-row">
-                    <div class="search-field">
-                        <label for="extensao">Extensão</label>
-                        <input class="input" id="extensao" name="extensao" type="text"
-                               placeholder="Ex: .pdf, .mp4, .zip">
-                    </div>
-                    <div class="search-field">
-                        <label for="tamanho_min">Tamanho mínimo</label>
-                        <input class="input" id="tamanho_min" name="tamanho_min" type="text"
-                               placeholder="Ex: 100 MB">
-                    </div>
-                    <div class="search-field">
-                        <label for="tamanho_max">Tamanho máximo</label>
-                        <input class="input" id="tamanho_max" name="tamanho_max" type="text"
-                               placeholder="Ex: 2 GB">
+            <div class="search-field">
+                <label for="tamanho_max">Tamanho máximo</label>
+                <div style="display: flex; align-items: center;">
+                    <input class="input" id="tamanho_max" name="tamanho_max" type="text"
+                        placeholder="Ex: 50">
+                    <div class="tooltip" style="display: none">
+                        <span class="help-icon">?</span>
+                         <span class="tooltiptext">
+                            Digite o valor de acordo com a unidade escolhida em "Exibição".<br><br>
+                            <strong>Exemplos:</strong><br>
+                            • <strong>Bytes</strong>: 1.6000 → ~1.6 MB<br>
+                            • <strong>Megabytes</strong>: 1.6 ou 1,6 → 1.6 MB<br>
+                            • <strong>Gigabytes</strong>: 0,5 → 500 MB<br><br>
+                            <em>Dica: use Megabytes para valores normais!</em>
+                        </span>
                     </div>
                 </div>
+            </div>
+        </div>
 
-                <div class="search-row">
-                    <div class="search-field">
-                        <label for="hash">Hash (MD5)</label>
-                        <input class="input" id="hash" name="hash" type="text"
-                               placeholder="Cole o MD5 completo ou parcial">
-                    </div>
-                    <div class="search-field checkbox-inline">
-                        <label class="checkbox-label">
-                            <input type="checkbox" name="somente_cache">
-                            <span>Somente arquivos já presentes no cache</span>
-                        </label>
-                    </div>
-                </div>
+        <div class="search-row">
+            <div class="search-field">
+                <label for="modo_exibicao">Exibição</label>
+                <select class="input" id="modo_exibicao" name="modo_exibicao" data-fancy="js fancy-select" data-fancy-label="Exibição">
+                    <option value="bytes">Bytes</option>
+                    <option value="mega">Megabytes</option>
+                    <option value="giga">Gigabytes</option>
+                </select>
+            </div>
+            <div class="search-field" style="display: none">
+                <label for="caminho">Caminho base</label>
+                <input class="input" id="caminho" name="caminho" type="text"
+                       placeholder="Ex: C:\Users\SeuUsuario\Downloads">
+            </div>
+            <div class="search-field checkbox-inline" style="display:none">
+                <label class="checkbox-label">
+                    <input type="checkbox" name="somente_cache">
+                    <span>Somente arquivos já presentes no cache</span>
+                </label>
+            </div>
+        </div>
 
-                <div class="search-actions">
-                    <button type="submit" class="btn primary">Buscar</button>
-                    <button type="reset" class="btn ghost">Limpar filtros</button>
-                </div>
-            </form>
-        </section>
+        <div class="search-actions">
+            <button type="submit" class="btn primary">Buscar</button>
+            <button type="reset" id="btn-limpar" class="btn ghost">Limpar filtros</button>
+        </div>
+    </form>
+</section>
 
-        <!-- TABELA DE RESULTADOS -->
-        <section class="card">
+<section class="card" id="resultadosSection" style="display:none;">
+    <div id="dup-groups">
+        <div class="duplicate-group">
             <header class="card-header">
                 <h2>Resultados</h2>
                 <span class="card-subtitle">Arquivos que atendem aos filtros informados.</span>
@@ -98,48 +216,479 @@
                             <th>Extensão</th>
                             <th>Tamanho</th>
                             <th>Hash MD5</th>
-                            <th>Última modificação</th>
+                            {% comment %} <th>Última modificação</th> {% endcomment %}
                             <th>Origem</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <tr>
-                            <td>relatorio_financeiro_2024.pdf</td>
-                            <td class="col-path">C:\Dados\Relatorios\relatorio_financeiro_2024.pdf</td>
-                            <td><span class="badge badge-ext">.pdf</span></td>
-                            <td>12,4 MB</td>
-                            <td class="mono">a4f8e91c9b2d0f83b9c7a1e2f5c6d7e8</td>
-                            <td>10/03/2025 14:32</td>
-                            <td><span class="badge badge-cache">Cache</span></td>
-                        </tr>
-                        <tr>
-                            <td>video_apresentacao.mp4</td>
-                            <td class="col-path">D:\Midia\Videos\video_apresentacao.mp4</td>
-                            <td><span class="badge badge-ext">.mp4</span></td>
-                            <td>1,8 GB</td>
-                            <td class="mono">2c9f7a1e3b4d5f6c7e8a9b0c1d2e3f4a</td>
-                            <td>08/03/2025 09:15</td>
-                            <td><span class="badge badge-disco">Leitura direta</span></td>
-                        </tr>
-                        <tr>
-                            <td>backup.zip</td>
-                            <td class="col-path">E:\Backups\backup.zip</td>
-                            <td><span class="badge badge-ext">.zip</span></td>
-                            <td>4,2 GB</td>
-                            <td class="mono">9b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e</td>
-                            <td>01/03/2025 22:01</td>
-                            <td><span class="badge badge-cache">Cache</span></td>
-                        </tr>
-                    </tbody>
+                    <tbody></tbody>
                 </table>
             </div>
+        </div>
+    </div>
 
-            <div class="table-footer">
-                <span>Mostrando 3 de 3 arquivos encontrados.</span>
-                <button class="btn ghost btn-sm">Carregar mais</button>
-            </div>
-        </section>
-    </main>
-</div>
-</body>
-</html>
+    <div class="table-footer table-footer--dup">
+        <span id="resultadoInfo" class="resultado-info">
+            Nenhuma busca realizada ainda.
+        </span>
+
+        <div id="dup-pagination"></div>
+    </div>
+</section>
+
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    let resultados = [];
+    const tbody             = document.querySelector("#resultadosSection table tbody");
+    const resultadosSection = document.getElementById("resultadosSection");
+    const resultadoInfo     = document.getElementById("resultadoInfo");
+    const modoExibicao      = document.getElementById("modo_exibicao");
+    const tMin              = document.getElementById("tamanho_min");
+    const tMax              = document.getElementById("tamanho_max");
+    const extensaoSelect    = document.getElementById("extensao");
+    const caminhoInput      = document.getElementById("caminho");
+    const nomeInput         = document.getElementById("nome");
+    const modalNenhum       = document.getElementById("modal-nenhum-resultado");
+
+    let cardFilterInstance = null; 
+
+    // ----------------------------
+    // DEBOUNCE
+    // ----------------------------
+    function debounce(fn, delay) {
+        let timer = null;
+        return function (...args) {
+            clearTimeout(timer);
+            timer = setTimeout(() => fn.apply(this, args), delay);
+        };
+    }
+
+    // ----------------------------
+    // CONFIRMAÇÃO (showConfirm)
+    // ----------------------------
+    const goHomeUrl = "{% url 'home' %}";
+
+    async function doConfirm() {
+        try {
+            if (typeof window.showConfirm !== "function") {
+                console.warn("showConfirm não está disponível.");
+                return false;
+            }
+
+            const ok = await window.showConfirm({
+                title: "Arquivo não encontrado",
+                text: `O arquivo não existe no cache atual.
+                       É recomendado refazer a varredura na tela inicial.`,
+                confirmLabel: "Ir para início",
+                cancelLabel: "Continuar aqui",
+                variant: "warning",
+            });
+
+            if (ok) {
+                window.enqueueNotification?.({
+                    title: "Redirecionando",
+                    text: "Você será redirecionado para a página inicial.",
+                    variant: "info",
+                });
+                window.displayQueuedNotifications?.();
+
+                setTimeout(() => window.location.href = goHomeUrl, 150);
+            }
+
+            return ok;
+        } catch (err) {
+            console.error("Erro em doConfirm:", err);
+            return false;
+        }
+    }
+
+    // ----------------------------
+    // NOTIFICAÇÕES - EVENTOS
+    // ----------------------------
+
+    const hashInput = document.getElementById("hash");
+    hashInput?.addEventListener("input", debounce(function () {
+        let val = hashInput.value;
+        const valLimpa = val.replace(/[^0-9a-fA-F]/g, "");
+        if (val !== valLimpa) {
+            hashInput.value = valLimpa;
+        }
+        const hashCurto = valLimpa.length > 12 ? valLimpa.substring(0, 12) + "…" : valLimpa;
+        if (valLimpa === "") {
+            window.enqueueNotification?.({
+                title: "Hash limpo",
+                text: "Nenhum hash informado.",
+                variant: "info"
+            });
+            window.displayQueuedNotifications?.();
+            return;
+        }
+        if (/^[0-9a-fA-F]{32}$/.test(valLimpa)) {
+            window.enqueueNotification?.({
+                title: "Hash MD5 válido!",
+                text: `Buscando exatamente: ${hashCurto}`,
+                variant: "success"
+            });
+        } 
+        else {
+            const status = valLimpa.length === 32
+                ? "Hash inválido (use apenas 0–9 e a–f)"
+                : `Hash parcial (${valLimpa.length}/32)`;
+
+            window.enqueueNotification?.({
+                title: valLimpa.length >= 20 ? "Atenção no hash" : "Hash MD5",
+                text: `${hashCurto} – ${status}`,
+                variant: valLimpa.length >= 20 ? "warning" : "info"
+            });
+        }
+        window.displayQueuedNotifications?.();
+    }, 600));
+
+    nomeInput?.addEventListener("input", debounce(function () {
+        const val = nomeInput.value.trim();
+        if (!val) return;
+
+        window.enqueueNotification?.({
+            title: "Filtro atualizado",
+            text: `Novo nome informado: ${val}`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+    }, 650));
+
+    extensaoSelect?.addEventListener("change", function () {
+        const val = extensaoSelect.value;
+        const txt = val === "" ? "Todas as extensões" : "." + val;
+
+        window.enqueueNotification?.({
+            title: "Extensão alterada",
+            text: `Você selecionou: ${txt}`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+    });
+
+    caminhoInput?.addEventListener("change", function () {
+        const val = caminhoInput.value.trim();
+
+        window.enqueueNotification?.({
+            title: "Caminho atualizado",
+            text: `Novo caminho: ${val}`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+    });
+
+   modoExibicao?.addEventListener("change", function () {
+        const val = modoExibicao.value;
+        const texto = val === "bytes" ? "Bytes" : val === "mega" ? "Megabytes" : "Gigabytes";
+
+        window.enqueueNotification?.({
+            title: "Modo de exibição",
+            text: `Agora os tamanhos serão mostrados em: ${texto}`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+
+        atualizarPlaceholders();
+
+        if (resultados.length > 0) {
+            document.querySelectorAll("#resultadosSection table tbody tr").forEach((tr, i) => {
+                const tdTamanho = tr.querySelector("td:nth-child(4)");
+                if (tdTamanho && resultados[i]) {
+                    tdTamanho.textContent = formatarTamanho(resultados[i].tamanho);
+                }
+            });
+            cardFilterInstance?.refresh();
+        }
+    });
+
+    // ----------------------------
+    // VALIDAÇÃO TAMANHOS
+    // ----------------------------
+    tMin?.addEventListener("input", debounce(function () {
+    let valor = tMin.value.trim();
+    
+    if (!/^\d*[.,]?\d*$/.test(valor)) {
+        tMin.value = valor.replace(/[^0-9.,]/g, ""); 
+        window.enqueueNotification?.({
+            title: "Campo inválido",
+            text: "O tamanho mínimo só aceita números e ponto.",
+            variant: "warning"
+        });
+        window.displayQueuedNotifications?.();
+    }
+
+        valor = tMin.value;
+        if (!valor) return;
+
+        const modo = modoExibicao.value;
+        const unidade =
+            modo === "bytes" ? (valor == 1 ? "Byte" : "Bytes") :
+            modo === "mega" ? (valor == 1 ? "Megabyte" : "Megabytes") :
+            (valor == 1 ? "Gigabyte" : "Gigabytes");
+
+        window.enqueueNotification?.({
+            title: "Tamanho mínimo atualizado",
+            text: `Novo valor: ${valor} (${unidade})`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+    }, 610));
+
+    tMax?.addEventListener("input", debounce(function () {
+        let valor = tMax.value.trim();
+
+        if (!/^\d*[.,]?\d*$/.test(valor)) {
+            tMax.value = valor.replace(/[^0-9.,]/g, "");
+            window.enqueueNotification?.({
+                title: "Campo inválido",
+                text: "O tamanho máximo só aceita números e ponto.",
+                variant: "warning"
+            });
+            window.displayQueuedNotifications?.();
+        }
+
+
+        valor = tMax.value;
+        if (!valor) return;
+
+        const modo = modoExibicao.value;
+        const unidade =
+            modo === "bytes" ? (valor == 1 ? "Byte" : "Bytes") :
+            modo === "mega" ? (valor == 1 ? "Megabyte" : "Megabytes") :
+            (valor == 1 ? "Gigabyte" : "Gigabytes");
+
+        window.enqueueNotification?.({
+            title: "Tamanho máximo atualizado",
+            text: `Novo valor: ${valor} (${unidade})`,
+            variant: "info"
+        });
+        window.displayQueuedNotifications?.();
+    }, 610));
+
+    // ----------------------------
+    // FORMATADOR TAMANHO
+    // ----------------------------
+    function formatarTamanho(bytes) {
+        if (bytes === null || bytes === undefined) return "-";
+        if (bytes === 0) return "0 Bytes";
+
+        const modo = modoExibicao.value;
+        if (modo === "bytes") {
+            return Number(bytes).toLocaleString("pt-BR") + " Bytes";
+        }
+        if (modo === "mega") {
+            const mb = bytes / (1024 * 1024);
+            return mb.toFixed(4).replace(/\.?0+$/, "") + " MB";
+        }
+        const gb = bytes / (1024 * 1024 * 1024);
+        return gb.toFixed(6).replace(/\.?0+$/, "") + " GB";
+    }
+
+    // ----------------------------
+    // PLACEHOLDERS
+    // ----------------------------
+    function atualizarPlaceholders() {
+        if (!modoExibicao) return;
+        if (modoExibicao.value === "bytes") {
+            tMin.placeholder = "Ex: 10";
+            tMax.placeholder = "Ex: 200";
+        } else if (modoExibicao.value === "mega") {
+            tMin.placeholder = "Ex: 1";
+            tMax.placeholder = "Ex: 50";
+        } else {
+            tMin.placeholder = "Ex: 1";
+            tMax.placeholder = "Ex: 5";
+        }
+    }
+
+    // ----------------------------
+    // RENDER TABELA (sem paginação manual)
+    // ----------------------------
+    function renderTabela() {
+        const nomeInput         = document.getElementById("nome");
+        const extensaoSelect    = document.getElementById("extensao");
+        const tMin              = document.getElementById("tamanho_min");
+        const tMax              = document.getElementById("tamanho_max");
+        const hashInput         = document.getElementById("hash");
+
+        const temAlgumFiltro = 
+               nomeInput.value.trim()      !== "" 
+            || extensaoSelect.value.trim() !== "" 
+            || tMin.value.trim()           !== "" 
+            || tMax.value.trim()           !== "" 
+            || hashInput.value.trim()      !== "";
+
+        tbody.innerHTML = "";
+
+        if (!resultados.length && temAlgumFiltro) {
+            resultadosSection.style.display = "none";
+            if (resultadoInfo) {
+                resultadoInfo.textContent = "Nenhum arquivo encontrado.";
+            }
+
+            if (temAlgumFiltro) {
+                window.enqueueNotification?.({
+                    title: "Nenhum arquivo encontrado",
+                    text: "Nenhum resultado corresponde aos filtros aplicados.",
+                    variant: "error",
+                });
+                window.displayQueuedNotifications?.();
+                doConfirm();
+            }
+            return;
+        }
+
+        resultadosSection.style.display = "block";
+
+        resultados.forEach(arq => {
+            const tr = document.createElement("tr");
+            tr.setAttribute("data-nome", (arq.nome || "").toLowerCase());
+            tr.setAttribute("data-caminho", (arq.caminho || "").toLowerCase());
+            tr.setAttribute("data-extensao", (arq.extensao || "").toLowerCase());
+
+            tr.innerHTML = `
+                <td>${arq.nome}</td>
+                <td class="col-path">${arq.caminho}</td>
+                <td><span class="badge badge-ext">.${arq.extensao}</span></td>
+                <td>${formatarTamanho(arq.tamanho)}</td>
+                <td class="mono">${arq.hash_md5 || "-"}</td>
+                {% comment %} <td>${arq.modificacao || "-"}</td> {% endcomment %}
+                <td>
+                    <span class="badge badge-${arq.origem === "cache" ? "cache" : "disco"}">
+                        ${arq.origem === "cache" ? "Cache" : "Leitura direta"}
+                    </span>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        if (!cardFilterInstance) {
+            cardFilterInstance = window.initCardFilter({
+                container: '#dup-groups',
+                itemSelector: 'tbody tr',
+                controls: '#dup-pagination',
+                perPage: 10,
+                perPageOptions: [10, 20, 50],
+                onStatsChange({ pageItems, filteredTotal, pageCount, currentPage, pageFrom, pageTo }) {
+                    if (!resultadoInfo) return;
+
+                    if (filteredTotal === 0) {
+                        resultadoInfo.textContent = "Nenhum arquivo encontrado.";
+                    } else {
+                        resultadoInfo.textContent =
+                            `Mostrando ${pageFrom}–${pageTo} de ${filteredTotal} arquivo(s) ` +
+                            `(página ${currentPage} de ${pageCount}).`;
+                    }
+                },
+            });
+        } else {
+            cardFilterInstance.refresh();
+        }
+    }
+
+    // ----------------------------
+    // SUBMIT DO FORM
+    // ----------------------------
+    document.querySelector(".search-form").addEventListener("submit", async function (e) {
+        e.preventDefault();
+
+       function converterParaBytes(valor, modo) {
+            if (!valor) return "";
+
+            const limpo = valor.toString().trim();
+
+            const normalizado = limpo
+                .replace(/\.(?=.*\.)/g, '')    
+                .replace(/,/g, '.');           
+
+            const num = parseFloat(normalizado);
+
+            if (isNaN(num) || num < 0) return "";
+
+            if (modo === "mega") return Math.round(num * 1024 * 1024);
+            if (modo === "giga") return Math.round(num * 1024 * 1024 * 1024);
+            return Math.round(num);
+        }
+
+        const modo = modoExibicao.value;
+
+        const filtros = {
+            caminho: caminhoInput.value,
+            nome: nomeInput.value,
+            extensao: extensaoSelect.value,
+            tamanho_min: converterParaBytes(tMin.value, modo),
+            tamanho_max: converterParaBytes(tMax.value, modo),
+            hash: document.getElementById("hash").value,
+            somente_cache: document.querySelector("input[name='somente_cache']").checked
+        };
+
+        const response = await fetch("/buscar-arquivos/", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-CSRFToken": "{{ csrf_token }}"
+            },
+            body: JSON.stringify(filtros)
+        });
+
+        const dados = await response.json();
+
+        resultados = dados.resultados || [];
+        renderTabela();
+    });
+
+    // ----------------------------
+    // BOTÃO LIMPAR
+    // ----------------------------
+    document.getElementById("btn-limpar")?.addEventListener("click", function () {
+        const extensaoSelect = document.getElementById("extensao");
+        const textoSelecionado = extensaoSelect.options[extensaoSelect.selectedIndex]?.text.trim();
+
+        if (textoSelecionado === "-- Selecionar --") {
+            window.location.reload();
+            return; 
+        }
+
+        caminhoInput.value   = "";
+        nomeInput.value      = "";
+        extensaoSelect.value = "";  
+        tMin.value           = "";
+        tMax.value           = "";
+        document.getElementById("hash").value = "";
+        
+        const chk = document.querySelector("input[name='somente_cache']");
+        if (chk) chk.checked = false;
+
+        resultados = [];
+        tbody.innerHTML = "";
+        resultadosSection.style.display = "none";
+        if (resultadoInfo) {
+            resultadoInfo.textContent = "Nenhuma busca realizada ainda.";
+        }
+
+        if (cardFilterInstance) {
+            cardFilterInstance.refresh();
+        }
+
+        atualizarPlaceholders();
+    });
+
+    // ----------------------------
+    // MODAL NENHUM RESULTADO (se existir)
+    // ----------------------------
+    window.fecharModalNenhum = function () {
+        if (modalNenhum) modalNenhum.style.display = "none";
+    };
+
+    if (modalNenhum) {
+        modalNenhum.addEventListener("click", function (e) {
+            if (e.target === modalNenhum) window.fecharModalNenhum();
+        });
+        modalNenhum.style.display = "none";
+    }
+    atualizarPlaceholders();
+});
+</script>
+
+{% endblock %}

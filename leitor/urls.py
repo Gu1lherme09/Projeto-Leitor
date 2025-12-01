@@ -26,4 +26,5 @@ urlpatterns = [
     path('pesquisar/', views.pesquisar, name="pesquisar"),
     path('nova_varredura', views.nova_varredura, name="nova_varredura"),
     path('atualizar_cache', views.atualizar_cache, name="atualizar_cache"),
+    path("buscar-arquivos/", views.buscar_arquivos, name="buscar-arquivos"),
 ]

@@ -124,3 +124,215 @@ class ManipuladorPasta:
         print(f" Arquivos duplicados: {total_duplicados}")
         print(f" Espaço desperdiçado: {espaco_duplicado / (1024 * 1024):.2f} MB")
 
+    def buscar_pasta(self, termo):
+            termo = termo.lower()
+            resultados = []
+
+            def rec(no, caminho):
+                while no:
+                    pasta = no.pasta
+                    caminho_atual = os.path.join(caminho, pasta.nome)
+
+                    if termo in pasta.nome.lower():
+                        tamanho_total = self.calcular_tamanho_pasta(pasta)
+                        resultados.append({
+                            "nome": pasta.nome,
+                            "caminho": caminho_atual,
+                            "tamanho_total": tamanho_total
+                        })
+
+                    if pasta.subpastas:
+                        rec(pasta.subpastas, caminho_atual)
+
+                    no = no.proximo
+
+            rec(self.no_raiz, "")
+
+            return {
+                "status": "ok" if resultados else "vazio",
+                "termo": termo,
+                "quantidade": len(resultados),
+                "resultados": resultados
+            }
+
+
+    def buscar_extensao(self, termo):
+        termo = termo.lower().strip()
+
+        if not termo.startswith("."):
+            termo = "." + termo
+
+        resultados = []
+
+        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
+            nome_ext = f"{arquivo.nome}.{arquivo.extensao}".lower()
+            if nome_ext.endswith(termo):
+                resultados.append({
+                    "nome": f"{arquivo.nome}.{arquivo.extensao}",
+                    "caminho": caminho_pasta,
+                    "tamanho": arquivo.tamanho
+                })
+
+        return {
+            "status": "ok" if resultados else "vazio",
+            "termo": termo,
+            "quantidade": len(resultados),
+            "resultados": resultados
+        }
+
+
+    def buscar_arquivo(self, termo):
+        termo = termo.lower()
+        resultados = []
+
+        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
+            nome = arquivo.nome.lower()
+
+            if termo in nome:
+                nome_ext = f"{arquivo.nome}.{arquivo.extensao}"
+                resultados.append({
+                    "nome": nome_ext,
+                    "caminho": caminho_pasta,
+                    "tamanho": arquivo.tamanho
+                })
+
+        return {
+            "status": "ok" if resultados else "vazio",
+            "termo": termo,
+            "quantidade": len(resultados),
+            "resultados": resultados
+        }
+
+
+    def mostrar_conteudo_pasta(self, pasta):
+        """Agora retorna JSON também."""
+        return self._montar_json_pasta(pasta)
+
+
+    def _montar_json_pasta(self, pasta):
+        subpastas_json = []
+
+        sub = pasta.subpastas
+        while sub is not None:
+            subpastas_json.append(self._montar_json_pasta(sub.pasta))
+            sub = sub.proximo
+
+        return {
+            "nome": pasta.nome,
+            "arquivos": [
+                {
+                    "nome": arq.nome,
+                    "extensao": arq.extensao,
+                    "tamanho": arq.tamanho
+                }
+                for arq in pasta.arquivos
+            ],
+            "subpastas": subpastas_json
+        }
+
+
+    def calcular_tamanho_pasta(self, pasta):
+        total = 0
+
+        for arq in pasta.arquivos:
+            total += arq.tamanho
+
+        sub = pasta.subpastas
+        while sub is not None:
+            total += self.calcular_tamanho_pasta(sub.pasta)
+            sub = sub.proximo
+
+        return total
+
+    def buscar_avancado(self, nome="", extensao="", tamanho_min="", tamanho_max="", hash_md5="", somente_cache=False):
+        nome = nome.lower().strip()
+        extensao = extensao.lower().strip().replace(" ", "")
+        hash_md5 = hash_md5.lower().strip()
+
+        # NOVA FUNÇÃO: aceita tanto número (int) quanto string antiga ("30mb")
+        def parse_tamanho(valor):
+            if not valor:  # None, "", 0
+                return None
+            try:
+                # Caso 1: já vem como número (int/float) → nosso novo padrão do JS
+                if isinstance(valor, (int, float)):
+                    return int(valor)
+                # Caso 2: ainda vem como string (ex: "30mb", "5 gb", "1000") → compatibilidade
+                if isinstance(valor, str):
+                    valor = valor.strip().lower().replace(" ", "").replace(",", ".")
+                    mult = 1
+                    original = valor
+
+                    if valor.endswith("kb"):
+                        mult = 1024
+                        valor = valor[:-2]
+                    elif valor.endswith("mb"):
+                        mult = 1024**2
+                        valor = valor[:-2]
+                    elif valor.endswith("gb"):
+                        mult = 1024**3
+                        valor = valor[:-2]
+                    elif valor.endswith("b"):
+                        valor = valor[:-1]
+
+                    # Remove tudo que não for número ou ponto
+                    num_str = ''.join(c for c in valor if c.isdigit() or c == '.')
+                    if not num_str:
+                        return None
+                    return int(float(num_str) * mult)
+            except:
+                pass
+            return None  # Qualquer erro → ignora o filtro
+
+        # Converte os filtros de tamanho
+        t_min = parse_tamanho(tamanho_min)
+        t_max = parse_tamanho(tamanho_max)
+
+        resultados = []
+
+        for caminho_pasta, arquivo in self.raiz.coletar_arquivos():
+            nome_ext = f"{arquivo.nome}.{arquivo.extensao}".lower()
+
+            # Filtro por nome
+            if nome and nome not in arquivo.nome.lower():
+                continue
+
+            # Filtro por extensão
+            if extensao:
+                ext_user = extensao.lstrip(".").lower()
+                ext_real = arquivo.extensao.lstrip(".").lower()
+                if ext_user != ext_real:
+                    continue
+
+            # Filtro por tamanho
+            if t_min is not None and arquivo.tamanho < t_min:
+                continue
+            if t_max is not None and arquivo.tamanho > t_max:
+                continue
+
+            # Filtro por hash MD5
+            if hash_md5:
+                if not arquivo.hash_md5:
+                    try:
+                        arquivo._calcular_hash()
+                    except:
+                        continue  # Se não conseguir calcular, pula
+                if hash_md5 not in (arquivo.hash_md5 or "").lower():
+                    continue
+
+            # Adiciona resultado
+            resultados.append({
+                "nome": f"{arquivo.nome}.{arquivo.extensao}",
+                "caminho": caminho_pasta,
+                "extensao": arquivo.extensao,
+                "tamanho": arquivo.tamanho,           # em bytes
+                "hash_md5": arquivo.hash_md5 or "",
+                "modificacao": None,
+                "origem": "cache" 
+            })
+
+        return {
+            "status": "ok" if resultados else "vazio",
+            "quantidade": len(resultados),
+            "resultados": resultados
+        }

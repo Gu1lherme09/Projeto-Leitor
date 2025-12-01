@@ -8,6 +8,7 @@ from django.conf import settings
 from django.shortcuts import render
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from django.http import JsonResponse
 from .Pasta import Pasta
 from .ManipuladorPasta import ManipuladorPasta
 from datetime import datetime
@@ -585,3 +586,19 @@ def atualizar_cache(request):
 
     messages.success(request, f"Cache hierarquicamente atualizado com os dados de '{scan_path}'.")
     return redirect("home")
+
+def buscar_arquivos(request):
+    filtros = json.loads(request.body)
+
+    mp = ManipuladorPasta(filtros.get("caminho") or ".")
+
+    resultado = mp.buscar_avancado(
+        nome=filtros.get("nome", ""),
+        extensao=filtros.get("extensao", ""),
+        tamanho_min=filtros.get("tamanho_min", ""),
+        tamanho_max=filtros.get("tamanho_max", ""),
+        hash_md5=filtros.get("hash", ""),
+        somente_cache=filtros.get("somente_cache", False)
+    )
+
+    return JsonResponse(resultado, safe=False)
