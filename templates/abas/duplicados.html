@@ -301,9 +301,6 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // =========================
-    // CONFIRM + LOADER NO "RECALCULAR DUPLICADOS"
-    // =========================
     if (formRecalc) {
         formRecalc.addEventListener("submit", async function (e) {
             if (typeof window.showConfirm === "function") {
@@ -343,113 +340,123 @@ document.addEventListener("DOMContentLoaded", function () {
     const groupsContainer = document.querySelector('#dup-groups');
     if (!groupsContainer) return;
 
-    // =========================
-    // COLETA DE ESTATÍSTICAS DOS GRUPOS VISÍVEIS
-    // =========================
     function collectStatsFromVisibleGroups() {
-        const visibleGroups = Array.from(
-            document.querySelectorAll(".duplicate-group")
-        ).filter(g => g.offsetParent !== null); // só grupos realmente visíveis (página + filtro)
+    const visibleGroups = Array.from(
+        document.querySelectorAll(".duplicate-group")
+    ).filter(g => g.offsetParent !== null); 
 
-        const byExtSize    = new Map(); // extensão -> bytes
-        const byFolderSize = new Map(); // pasta   -> bytes
+    const byExtSize    = new Map(); 
+    const byFolderSize = new Map(); 
 
-        let baseCount = 0;   // 1 arquivo "base" por grupo
-        let dupCount  = 0;   // arquivos extras (duplicados além do primeiro)
-        let baseBytes = 0;
-        let dupBytes  = 0;
-        let totalFiles = 0;
+    let baseCount  = 0;  
+    let dupCount   = 0;  
+    let baseBytes  = 0;
+    let dupBytes   = 0;
+    let totalFiles = 0;
 
-        visibleGroups.forEach(group => {
-            const badgeExt = group.querySelector(".badge-ext");
-            let extLabel = badgeExt ? badgeExt.textContent.trim() : "desconhecido";
+    visibleGroups.forEach(group => {
+        // só linhas realmente visíveis (respeitando filtros de extensão/pasta)
+        const rows = Array.from(group.querySelectorAll("tbody tr"))
+            .filter(r => r.style.display !== "none");
 
-            // arquivos sem extensão aparecem como "."
-            if (extLabel === "." || extLabel === "") {
-                extLabel = "Sem extensão";  // ou "Outros", se preferir
+        if (!rows.length) return;
+
+        baseCount += 1;
+        totalFiles += rows.length;
+
+        // ===== pasta (continua igual, usa a primeira linha do grupo) =====
+        const firstRow = rows[0];
+        const pathCell = firstRow.querySelector(".col-path");
+        let path = pathCell ? pathCell.textContent.trim() : "";
+
+        let dirPath = path;
+        const lastSep = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
+        if (lastSep > 0) {
+            dirPath = path.slice(0, lastSep);
+        }
+
+        let folderLabel = dirPath;
+        if (dirPath) {
+            const prevSep = Math.max(dirPath.lastIndexOf("\\"), dirPath.lastIndexOf("/"));
+            if (prevSep >= 0) {
+                folderLabel = dirPath.slice(prevSep + 1);
             }
+        }
+        if (!folderLabel) {
+            folderLabel = "(raiz)";
+        }
 
-            const rows = Array.from(group.querySelectorAll("tbody tr"))
-                .filter(r => r.style.display !== "none"); // respeita filtros de texto
+        // ===== percorre cada arquivo do grupo =====
+        rows.forEach((row, idx) => {
+            const rawSize   = row.dataset.sizeBytes || row.getAttribute("data-size-bytes") || "0";
+            const sizeBytes = parseInt(rawSize, 10) || 0;
 
-            if (!rows.length) return;
+            // --- extensão por LINHA (novo) ---
+            const nameCell = row.querySelector("td:first-child");
+            const fileName = nameCell ? nameCell.textContent.trim() : "";
+            let extLabel = "Sem extensão";
 
-            baseCount += 1;
-            totalFiles += rows.length;
-
-            // pasta baseada na primeira linha visível
-            // DEPOIS – usa só o nome da última pasta
-            const firstRow = rows[0];
-            const pathCell = firstRow.querySelector(".col-path");
-            let path = pathCell ? pathCell.textContent.trim() : "";
-
-            // diretório do arquivo
-            let dirPath = path;
-            const lastSep = Math.max(path.lastIndexOf("\\"), path.lastIndexOf("/"));
-            if (lastSep > 0) {
-                dirPath = path.slice(0, lastSep);
-            }
-
-            // nome da pasta (último segmento do caminho)
-            let folderLabel = dirPath;
-            if (dirPath) {
-                const prevSep = Math.max(dirPath.lastIndexOf("\\"), dirPath.lastIndexOf("/"));
-                if (prevSep >= 0) {
-                    folderLabel = dirPath.slice(prevSep + 1);
+            if (fileName) {
+                const lastDot = fileName.lastIndexOf(".");
+                // ignora nomes sem ponto ou começando com ponto (".gitignore")
+                if (lastDot > 0 && lastDot < fileName.length - 1) {
+                    extLabel = fileName.slice(lastDot).toLowerCase(); // ".py", ".txt"...
                 }
             }
 
-            // fallback
-            if (!folderLabel) {
-                folderLabel = "(raiz)";
+            // soma por extensão
+            byExtSize.set(extLabel, (byExtSize.get(extLabel) || 0) + sizeBytes);
+            // soma por pasta (igual antes)
+            byFolderSize.set(folderLabel, (byFolderSize.get(folderLabel) || 0) + sizeBytes);
+
+            // base x duplicado (igual antes)
+            if (idx === 0) {
+                baseBytes += sizeBytes;
+            } else {
+                dupBytes  += sizeBytes;
+                dupCount  += 1;
             }
-
-            rows.forEach((row, idx) => {
-                const rawSize  = row.dataset.sizeBytes || row.getAttribute("data-size-bytes") || "0";
-                const sizeBytes = parseInt(rawSize, 10) || 0;
-
-                // soma por extensão
-                byExtSize.set(extLabel, (byExtSize.get(extLabel) || 0) + sizeBytes);
-                // soma por pasta
-                byFolderSize.set(folderLabel, (byFolderSize.get(folderLabel) || 0) + sizeBytes);
-
-                if (idx === 0) {
-                    baseBytes += sizeBytes;
-                } else {
-                    dupBytes  += sizeBytes;
-                    dupCount  += 1;
-                }
-            });
         });
+    });
 
-        return {
-            byExtSize,
-            byFolderSize,
-            baseCount,
-            dupCount,
-            baseBytes,
-            dupBytes,
-            totalFiles,
-            groupCount: visibleGroups.length,
-        };
-    }
+    return {
+        byExtSize,
+        byFolderSize,
+        baseCount,
+        dupCount,
+        baseBytes,
+        dupBytes,
+        totalFiles,
+        groupCount: visibleGroups.length,
+    };
+}
+
 
     function buildDatasetFromMap(map, maxItems = 6) {
         const entries = Array.from(map.entries())
-            .sort((a, b) => b[1] - a[1])  // maior -> menor
+            .sort((a, b) => b[1] - a[1])
             .slice(0, maxItems);
 
         const BYTES_IN_GB = 1024 * 1024 * 1024;
+        const BYTES_IN_MB = 1024 * 1024;
+
+        const maxBytes = entries.length ? entries[0][1] : 0;
+
+        let unit = "GB";
+        let divisor = BYTES_IN_GB;
+
+        if (maxBytes > 0 && maxBytes < BYTES_IN_GB / 10) {
+            unit = "MB";
+            divisor = BYTES_IN_MB;
+        }
 
         return {
             labels: entries.map(e => e[0]),
-            data:   entries.map(e => e[1] / BYTES_IN_GB), // bytes -> GB
+            data:   entries.map(e => e[1] / divisor),
+            unit, 
         };
     }
 
-    // =========================
-    // INSTÂNCIAS DOS GRÁFICOS
-    // =========================
     const extCtx   = document.getElementById("dupExtChart")?.getContext("2d");
     const pastaCtx = document.getElementById("dupFolderChart")?.getContext("2d");
     const wasteCtx = document.getElementById("dupWasteChart")?.getContext("2d");
@@ -457,6 +464,7 @@ document.addEventListener("DOMContentLoaded", function () {
     let extChart   = null;
     let pastaChart = null;
     let wasteChart = null;
+    let extChartUnit = "GB"; // <- unidade atual do gráfico de extensão
 
     function updateDupCharts() {
         const stats = collectStatsFromVisibleGroups();
@@ -465,7 +473,6 @@ document.addEventListener("DOMContentLoaded", function () {
         const baseGB = stats.baseBytes / BYTES_IN_GB;
         const dupGB  = stats.dupBytes  / BYTES_IN_GB;
 
-        // contador no subtítulo do primeiro card (Extensões)
         const counterEl = document.getElementById("dup-counter");
         if (counterEl) {
             counterEl.textContent =
@@ -473,9 +480,7 @@ document.addEventListener("DOMContentLoaded", function () {
                 `(${stats.groupCount} grupo(s), ${stats.dupCount} duplicado(s) extra).`;
         }
 
-        // =========================
-        // 1) PIZZA: Impacto (arquivos únicos x duplicados)
-        // =========================
+        // --- donut de impacto (únicos x duplicados) ---
         if (wasteCtx) {
             const data = [stats.baseCount, stats.dupCount];
 
@@ -510,55 +515,61 @@ document.addEventListener("DOMContentLoaded", function () {
             }
         }
 
-        // =========================
-        // 2) COLUNA: EXTENSÃO x GB
-        // =========================
         if (extCtx) {
             const extData = buildDatasetFromMap(stats.byExtSize);
+            extChartUnit = extData.unit; 
+
+            const labels = extData.labels.length ? extData.labels : ["Sem dados"];
+            const data   = extData.labels.length ? extData.data   : [1];
 
             if (!extChart) {
                 extChart = new Chart(extCtx, {
-                    type: "bar",
+                    type: "doughnut",          // 👈 virou pizza
                     data: {
-                        labels: extData.labels,
+                        labels: labels,
                         datasets: [{
-                            data: extData.data,
+                            data: data,
+                            // cores diferentes pra cada fatia (opcional, pode tirar que o Chart.js gera)
+                            backgroundColor: [
+                                "rgba(59,130,246,0.9)",
+                                "rgba(34,197,94,0.9)",
+                                "rgba(249,115,22,0.9)",
+                                "rgba(236,72,153,0.9)",
+                                "rgba(14,165,233,0.9)",
+                                "rgba(148,163,184,0.9)"
+                            ],
+                            borderWidth: 1,
                         }]
                     },
                     options: {
                         responsive: true,
+                        cutout: "55%",          // donut; se quiser pizza cheia, põe "0"
                         plugins: {
-                            legend: { display: false },
+                            legend: {
+                                position: "bottom",
+                            },
                             tooltip: {
                                 callbacks: {
-                                    label: ctx =>
-                                        `${ctx.parsed.toFixed(2)} GB`
+                                    label: ctx => {
+                                        const label = ctx.label || "";
+                                        const val   = ctx.parsed || 0;
+                                        return `${label}: ${val.toFixed(3)} ${extChartUnit}`;
+                                    }
                                 }
-                            }
-                        },
-                        scales: {
-                            y: {
-                                beginAtZero: true,
-                                ticks: { callback: v => v + " GB" }
                             }
                         }
                     }
                 });
             } else {
-                extChart.data.labels = extData.labels;
-                extChart.data.datasets[0].data = extData.data;
+                extChart.data.labels = labels;
+                extChart.data.datasets[0].data = data;
                 extChart.update();
             }
         }
 
-        // =========================
-        // 3) PIZZA: PASTAS PRINCIPAIS (GB)
-        //    – usa apenas os grupos VISÍVEIS (já filtrados por pasta/ext)
-        // =========================
         if (pastaCtx) {
             const pastaData = buildDatasetFromMap(stats.byFolderSize);
 
-            // encurta os nomes das pastas para não quebrar o layout
             const pastaLabels = pastaData.labels.map(lbl => compactFolderLabel(lbl));
 
             if (!pastaChart) {
@@ -594,9 +605,7 @@ document.addEventListener("DOMContentLoaded", function () {
         }
     }
 
-    // =========================
-    // FILTRO POR EXTENSÃO / PASTA + PAGINAÇÃO
-    // =========================
+
     function filtrarGrupo(group) {
         const extValue   = (filtroExt.value   || "").trim().toLowerCase();
         const pastaValue = (filtroPasta.value || "").trim().toLowerCase();
@@ -652,7 +661,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (!instance) return;
 
-    // estado inicial
     updateDupCharts();
 
     function atualizarFiltro() {

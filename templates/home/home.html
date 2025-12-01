@@ -11,7 +11,7 @@
         </div>
         <div class="header-actions">
             <button class="btn primary" id="btn-nova-varredura">Nova varredura</button>
-            <button class="btn ghost">Atualizar cache</button>
+            {%if sem_cache != True %}<button class="btn ghost" id="btn-atualizar-cache">Atualizar cache</button>{% endif %}
         </div>
     </header>
 
@@ -221,178 +221,192 @@
             </div>
         </div>
     </div>
+
+    <div class="modal-backdrop" id="modal-atualizar-cache">
+        <div class="modal">
+            <header class="modal-header">
+                <h2>Atualizar cache</h2>
+                <button type="button" class="modal-close" data-modal-close>&times;</button>
+            </header>
+
+            <div class="modal-body">
+                <p class="modal-text">
+                    Informe um novo caminho para mesclar com o cache existente.
+                    Ex: <span class="mono">C:\Users\SeuUsuario\Desktop</span>
+                </p>
+
+                <form method="post" action="{% url 'atualizar_cache' %}">
+                    {% csrf_token %}
+                    
+                    <div class="search-field">
+                        <label for="scan-path-atualizar">Caminho da pasta</label>
+                        <input
+                            id="scan-path-atualizar"
+                            name="scan_path"
+                            class="input mono"
+                            type="text"
+                            placeholder="Ex: D:\Documentos\Backup"
+                            required
+                        >
+                    </div>
+
+                    <div class="search-field" style="margin-top: 8px;">
+                        <label class="checkbox-label">
+                            <input
+                                type="checkbox"
+                                name="calcular_hash"
+                                value="1"
+                            >
+                            Calcular hash (MD5) para detectar duplicados  
+                            <span style="color: var(--text-muted); font-size: 11px;">
+                                (pode deixar a varredura mais lenta)
+                            </span>
+                        </label>
+                    </div>
+
+                    <div class="modal-footer">
+                        <button type="button" class="btn ghost" data-modal-close>Cancelar</button>
+                        <button type="submit" class="btn primary">Atualizar e mesclar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     {{ top_extensoes|json_script:"ext-data" }}
     {{ ext_buckets|json_script:"ext-buckets" }}
-    <script>
-    document.addEventListener("DOMContentLoaded", function () {
-        const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
-        const baseLivreGB   = parseFloat("{{ espaco_livre_gb|default:'0' }}") || 0;
 
-        let currentUnit = "GB";
-        let percOcupado = 0;
-        let percLivre   = 0;
+<script>
+document.addEventListener("DOMContentLoaded", function () {
+    const baseOcupadoGB = parseFloat("{{ espaco_ocupado_gb|default:'0' }}") || 0;
+    const baseLivreGB   = parseFloat("{{ espaco_livre_gb|default:'0' }}") || 0;
 
-        function getValues(unit) {
-            if (unit === "MB") {
-                return {
-                    ocupado: baseOcupadoGB * 1024,
-                    livre:   baseLivreGB   * 1024,
-                    suffix:  "MB",
-                };
-            }
+    let currentUnit = "GB";
+    let percOcupado = 0;
+    let percLivre   = 0;
+
+    function getValues(unit) {
+        if (unit === "MB") {
             return {
-                ocupado: baseOcupadoGB,
-                livre:   baseLivreGB,
-                suffix:  "GB",
+                ocupado: baseOcupadoGB * 1024,
+                livre:   baseLivreGB   * 1024,
+                suffix:  "MB",
             };
         }
+        return {
+            ocupado: baseOcupadoGB,
+            livre:   baseLivreGB,
+            suffix:  "GB",
+        };
+    }
 
-        const pizzaCanvas = document.getElementById("pizzaChart");
-        let pizzaChart = null;
+    const pizzaCanvas = document.getElementById("pizzaChart");
+    let pizzaChart = null;
 
-        if (pizzaCanvas) {
-            const initial = getValues(currentUnit);
-            const total = initial.ocupado + initial.livre || 1;
-            percOcupado = (initial.ocupado / total * 100).toFixed(1);
-            percLivre   = (initial.livre   / total * 100).toFixed(1);
+    if (pizzaCanvas) {
+        const initial = getValues(currentUnit);
+        const total = initial.ocupado + initial.livre || 1;
+        percOcupado = (initial.ocupado / total * 100).toFixed(1);
+        percLivre   = (initial.livre   / total * 100).toFixed(1);
 
-            if (initial.ocupado > 0 || initial.livre > 0) {
-                pizzaChart = new Chart(pizzaCanvas.getContext("2d"), {
-                    type: "doughnut",
-                    data: {
-                        labels: ["Ocupado", "Livre"],
-                        datasets: [{
-                            data: [initial.ocupado, initial.livre],
-                            backgroundColor: [
-                                "rgba(34,197,94,0.9)",
-                                "rgba(148,163,184,0.4)"
-                            ],
-                            borderWidth: 0
-                        }]
-                    },
-                    options: {
-                        cutout: "70%",
-                        responsive: true,
-                        plugins: {
-                            legend: {
-                                position: "bottom"
-                            },
-                            tooltip: {
-                                callbacks: {
-                                    label: ctx => {
-                                        const val = ctx.parsed;
-                                        const perc = ctx.dataIndex === 0 ? percOcupado : percLivre;
-                                        return `${val.toFixed(2)} ${currentUnit} (${perc}%)`;
-                                    }
+        if (initial.ocupado > 0 || initial.livre > 0) {
+            pizzaChart = new Chart(pizzaCanvas.getContext("2d"), {
+                type: "doughnut",
+                data: {
+                    labels: ["Ocupado", "Livre"],
+                    datasets: [{
+                        data: [initial.ocupado, initial.livre],
+                        backgroundColor: [
+                            "rgba(34,197,94,0.9)",
+                            "rgba(148,163,184,0.4)"
+                        ],
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    cutout: "70%",
+                    responsive: true,
+                    plugins: {
+                        legend: {
+                            position: "bottom"
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const val = ctx.parsed;
+                                    const perc = ctx.dataIndex === 0 ? percOcupado : percLivre;
+                                    return `${val.toFixed(2)} ${currentUnit} (${perc}%)`;
                                 }
                             }
                         }
                     }
-                });
+                }
+            });
+
+            const pizzaTotal = document.getElementById("pizza-total");
+            if (pizzaTotal) {
+                pizzaTotal.textContent = total.toFixed(2) + " " + currentUnit;
+            }
+        }
+
+        const unitButtons = document.querySelectorAll(".btn-unit");
+        unitButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                const unit = btn.dataset.unit;
+                if (!unit || unit === currentUnit || !pizzaChart) return;
+
+                currentUnit = unit;
+                unitButtons.forEach(b => b.classList.remove("is-active"));
+                btn.classList.add("is-active");
+
+                const v = getValues(currentUnit);
+                pizzaChart.data.datasets[0].data = [v.ocupado, v.livre];
+
+                const totalLocal = v.ocupado + v.livre || 1;
+                percOcupado = (v.ocupado / totalLocal * 100).toFixed(1);
+                percLivre   = (v.livre   / totalLocal * 100).toFixed(1);
 
                 const pizzaTotal = document.getElementById("pizza-total");
                 if (pizzaTotal) {
-                    pizzaTotal.textContent = total.toFixed(2) + " " + currentUnit;
+                    pizzaTotal.textContent = totalLocal.toFixed(2) + " " + currentUnit;
                 }
-            }
 
-            const unitButtons = document.querySelectorAll(".btn-unit");
-            unitButtons.forEach(btn => {
-                btn.addEventListener("click", () => {
-                    const unit = btn.dataset.unit;
-                    if (!unit || unit === currentUnit || !pizzaChart) return;
-
-                    currentUnit = unit;
-                    unitButtons.forEach(b => b.classList.remove("is-active"));
-                    btn.classList.add("is-active");
-
-                    const v = getValues(currentUnit);
-                    pizzaChart.data.datasets[0].data = [v.ocupado, v.livre];
-
-                    const totalLocal = v.ocupado + v.livre || 1;
-                    percOcupado = (v.ocupado / totalLocal * 100).toFixed(1);
-                    percLivre   = (v.livre   / totalLocal * 100).toFixed(1);
-
-                    const pizzaTotal = document.getElementById("pizza-total");
-                    if (pizzaTotal) {
-                        pizzaTotal.textContent = totalLocal.toFixed(2) + " " + currentUnit;
-                    }
-
-                    pizzaChart.update();
-                });
+                pizzaChart.update();
             });
+        });
+    }
+
+    const extCanvas = document.getElementById("extChart");
+    let extChart = null;
+
+    if (extCanvas) {
+        const extCtx = extCanvas.getContext("2d");
+        const totalGB = parseFloat("{{ total_tamanho_gb|default:'0' }}") || 0;
+
+        const bucketMaior1GB   = parseFloat("{{ bucket_maior_1gb_gb|default:'0' }}") || 0;
+        const bucket100MB1GB   = parseFloat("{{ bucket_100mb_1gb_gb|default:'0' }}") || 0;
+        const bucketMenor100MB = parseFloat("{{ bucket_menor_100mb_gb|default:'0' }}") || 0;
+
+        const extBucketsEl = document.getElementById("ext-buckets");
+        let extBuckets = {};
+        if (extBucketsEl) {
+            try {
+                extBuckets = JSON.parse(extBucketsEl.textContent);
+            } catch (e) {
+                console.error("Erro ao parsear ext_buckets:", e);
+            }
         }
 
-        // =========================
-        // GRÁFICO DONUT EXTENSÃO
-        // =========================
-        const extCanvas = document.getElementById("extChart");
-        let extChart = null;
+        const extSubtitle = document.getElementById("extChartSubtitle");
 
-        if (extCanvas) {
-            const extCtx = extCanvas.getContext("2d");
-            const totalGB = parseFloat("{{ total_tamanho_gb|default:'0' }}") || 0;
+        const bucketLabelMap = {
+            "gt_1gb": "> 1 GB",
+            "between_100mb_1gb": "100 MB – 1 GB",
+            "lt_100mb": "< 100 MB",
+        };
 
-            // buckets globais (qualquer extensão)
-            const bucketMaior1GB   = parseFloat("{{ bucket_maior_1gb_gb|default:'0' }}") || 0;
-            const bucket100MB1GB   = parseFloat("{{ bucket_100mb_1gb_gb|default:'0' }}") || 0;
-            const bucketMenor100MB = parseFloat("{{ bucket_menor_100mb_gb|default:'0' }}") || 0;
-
-            // buckets por extensão (gt_1gb, between_100mb_1gb, lt_100mb)
-            const extBucketsEl = document.getElementById("ext-buckets");
-            let extBuckets = {};
-            if (extBucketsEl) {
-                try {
-                    extBuckets = JSON.parse(extBucketsEl.textContent);
-                } catch (e) {
-                    console.error("Erro ao parsear ext_buckets:", e);
-                }
-            }
-
-            const extSubtitle = document.getElementById("extChartSubtitle");
-
-            const bucketLabelMap = {
-                "gt_1gb": "> 1 GB",
-                "between_100mb_1gb": "100 MB – 1 GB",
-                "lt_100mb": "< 100 MB",
-            };
-
-            function getInfoGlobalPorTamanho(bucketKey) {
-                if (!bucketKey) {
-                    return {
-                        labels: ["Total do cache"],
-                        data: [totalGB],
-                        subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`,
-                    };
-                }
-
-                if (bucketKey === "gt_1gb") {
-                    const outros = Math.max(totalGB - bucketMaior1GB, 0);
-                    return {
-                        labels: ["> 1 GB", "Outros"],
-                        data: [bucketMaior1GB, outros],
-                        subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
-                    };
-                }
-
-                if (bucketKey === "between_100mb_1gb") {
-                    const outros = Math.max(totalGB - bucket100MB1GB, 0);
-                    return {
-                        labels: ["100 MB – 1 GB", "Outros"],
-                        data: [bucket100MB1GB, outros],
-                        subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
-                    };
-                }
-
-                if (bucketKey === "lt_100mb") {
-                    const outros = Math.max(totalGB - bucketMenor100MB, 0);
-                    return {
-                        labels: ["< 100 MB", "Outros"],
-                        data: [bucketMenor100MB, outros],
-                        subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
-                    };
-                }
-
+        function getInfoGlobalPorTamanho(bucketKey) {
+            if (!bucketKey) {
                 return {
                     labels: ["Total do cache"],
                     data: [totalGB],
@@ -400,274 +414,402 @@
                 };
             }
 
-            function getInfo(extCode, bucketKey) {
-                // nada selecionado → total
-                if (!extCode && !bucketKey) {
-                    return getInfoGlobalPorTamanho(null);
-                }
-
-                // só tamanho → bucket global (qualquer extensão)
-                if (!extCode && bucketKey) {
-                    return getInfoGlobalPorTamanho(bucketKey);
-                }
-
-                const buckets = extBuckets[extCode] || {
-                    gt_1gb: 0,
-                    between_100mb_1gb: 0,
-                    lt_100mb: 0,
-                };
-                const extTotal =
-                    (buckets.gt_1gb || 0) +
-                    (buckets.between_100mb_1gb || 0) +
-                    (buckets.lt_100mb || 0);
-
-                // só extensão → total da extensão vs outros
-                if (extCode && !bucketKey) {
-                    const outros = Math.max(totalGB - extTotal, 0);
-                    return {
-                        labels: [`.${extCode}`, "Outros"],
-                        data: [extTotal, outros],
-                        subtitle: `.${extCode}: ${extTotal.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
-                    };
-                }
-
-                // extensão + tamanho → só aquela faixa daquela extensão
-                const val = buckets[bucketKey] || 0;
-                const outros = Math.max(totalGB - val, 0);
-                const faixaLabel = bucketLabelMap[bucketKey] || bucketKey;
-                const label = `.${extCode} (${faixaLabel})`;
-
+            if (bucketKey === "gt_1gb") {
+                const outros = Math.max(totalGB - bucketMaior1GB, 0);
                 return {
-                    labels: [label, "Outros"],
-                    data: [val, outros],
-                    subtitle: `${label}: ${val.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                    labels: ["> 1 GB", "Outros"],
+                    data: [bucketMaior1GB, outros],
+                    subtitle: `> 1 GB: ${bucketMaior1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
                 };
             }
 
-            function renderExtChart(info) {
-                if (extSubtitle) {
-                    extSubtitle.textContent = info.subtitle;
-                }
+            if (bucketKey === "between_100mb_1gb") {
+                const outros = Math.max(totalGB - bucket100MB1GB, 0);
+                return {
+                    labels: ["100 MB – 1 GB", "Outros"],
+                    data: [bucket100MB1GB, outros],
+                    subtitle: `100 MB – 1 GB: ${bucket100MB1GB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                };
+            }
 
-                if (!extChart) {
-                    extChart = new Chart(extCtx, {
-                        type: "doughnut",
-                        data: {
-                            labels: info.labels,
-                            datasets: [{
-                                data: info.data,
-                                backgroundColor: [
-                                    "rgba(37, 99, 235, 0.9)",
-                                    "rgba(148, 163, 184, 0.4)"
-                                ],
-                                borderColor: [
-                                    "rgba(37, 99, 235, 1)",
-                                    "rgba(148, 163, 184, 0.9)"
-                                ],
-                                borderWidth: 1.5
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            cutout: "60%",
-                            plugins: {
-                                legend: {
-                                    position: "bottom",
-                                    labels: {
-                                        boxWidth: 12,
-                                        font: { size: 11 }
-                                    }
-                                },
-                                tooltip: {
-                                    backgroundColor: "#fff",
-                                    titleColor: "#0f172a",
-                                    bodyColor: "#1e293b",
-                                    borderColor: "#cbd5f5",
-                                    borderWidth: 1,
-                                    padding: 10,
-                                    displayColors: true,
-                                    callbacks: {
-                                        label: (ctxT) => {
-                                            const val = ctxT.parsed;
-                                            return `${ctxT.label}: ${val.toFixed(2)} GB`;
-                                        }
+            if (bucketKey === "lt_100mb") {
+                const outros = Math.max(totalGB - bucketMenor100MB, 0);
+                return {
+                    labels: ["< 100 MB", "Outros"],
+                    data: [bucketMenor100MB, outros],
+                    subtitle: `< 100 MB: ${bucketMenor100MB.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                };
+            }
+
+            return {
+                labels: ["Total do cache"],
+                data: [totalGB],
+                subtitle: `Tamanho total: ${totalGB.toFixed(2)} GB (incluindo cache reaproveitado)`,
+            };
+        }
+
+        function getInfo(extCode, bucketKey) {
+            // nada selecionado → total
+            if (!extCode && !bucketKey) {
+                return getInfoGlobalPorTamanho(null);
+            }
+
+            // só tamanho → bucket global (qualquer extensão)
+            if (!extCode && bucketKey) {
+                return getInfoGlobalPorTamanho(bucketKey);
+            }
+
+            const buckets = extBuckets[extCode] || {
+                gt_1gb: 0,
+                between_100mb_1gb: 0,
+                lt_100mb: 0,
+            };
+            const extTotal =
+                (buckets.gt_1gb || 0) +
+                (buckets.between_100mb_1gb || 0) +
+                (buckets.lt_100mb || 0);
+
+            if (extCode && !bucketKey) {
+                const outros = Math.max(totalGB - extTotal, 0);
+                return {
+                    labels: [`.${extCode}`, "Outros"],
+                    data: [extTotal, outros],
+                    subtitle: `.${extCode}: ${extTotal.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+                };
+            }
+
+            const val = buckets[bucketKey] || 0;
+            const outros = Math.max(totalGB - val, 0);
+            const faixaLabel = bucketLabelMap[bucketKey] || bucketKey;
+            const label = `.${extCode} (${faixaLabel})`;
+
+            return {
+                labels: [label, "Outros"],
+                data: [val, outros],
+                subtitle: `${label}: ${val.toFixed(2)} GB de ${totalGB.toFixed(2)} GB`,
+            };
+        }
+
+        function renderExtChart(info) {
+            if (extSubtitle) {
+                extSubtitle.textContent = info.subtitle;
+            }
+
+            if (!extChart) {
+                extChart = new Chart(extCtx, {
+                    type: "doughnut",
+                    data: {
+                        labels: info.labels,
+                        datasets: [{
+                            data: info.data,
+                            backgroundColor: [
+                                "rgba(37, 99, 235, 0.9)",
+                                "rgba(148, 163, 184, 0.4)"
+                            ],
+                            borderColor: [
+                                "rgba(37, 99, 235, 1)",
+                                "rgba(148, 163, 184, 0.9)"
+                            ],
+                            borderWidth: 1.5
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        cutout: "60%",
+                        plugins: {
+                            legend: {
+                                position: "bottom",
+                                labels: {
+                                    boxWidth: 12,
+                                    font: { size: 11 }
+                                }
+                            },
+                            tooltip: {
+                                backgroundColor: "#fff",
+                                titleColor: "#0f172a",
+                                bodyColor: "#1e293b",
+                                borderColor: "#cbd5f5",
+                                borderWidth: 1,
+                                padding: 10,
+                                displayColors: true,
+                                callbacks: {
+                                    label: (ctxT) => {
+                                        const val = ctxT.parsed;
+                                        return `${ctxT.label}: ${val.toFixed(2)} GB`;
                                     }
                                 }
                             }
                         }
-                    });
-                } else {
-                    extChart.data.labels = info.labels;
-                    extChart.data.datasets[0].data = info.data;
-                    extChart.update();
-                }
-            }
-
-            // estado inicial → total
-            renderExtChart(getInfo(null, null));
-
-            const filtroExtensao = document.getElementById("filtro-extensao");
-            const filtroTamanho  = document.getElementById("filtro-tamanho");
-            const btnAplicar     = document.getElementById("btn-aplicar-filtros");
-
-            if (btnAplicar) {
-                btnAplicar.addEventListener("click", function () {
-                    const extCode = filtroExtensao ? filtroExtensao.value : "";
-                    const sizeKey = filtroTamanho  ? filtroTamanho.value  : "";
-
-                    const info = getInfo(
-                        extCode || null,
-                        sizeKey || null
-                    );
-                    renderExtChart(info);
+                    }
                 });
+            } else {
+                extChart.data.labels = info.labels;
+                extChart.data.datasets[0].data = info.data;
+                extChart.update();
             }
         }
-        // =========================
-        // MODAL NOVA VARREDURA + PROGRESSO CIRCULAR + CONFIRM
-        // =========================
-        const btnNovaVarredura = document.getElementById("btn-nova-varredura");
-        const modalBackdrop = document.getElementById("modal-nova-varredura");
-        const closeButtons = modalBackdrop ? modalBackdrop.querySelectorAll("[data-modal-close]") : [];
-        const formNovaVarredura = modalBackdrop ? modalBackdrop.querySelector("form") : null;
 
-        const integridadeCircle = document.getElementById("integridade-circle-fg");
-        const integridadePercent = document.getElementById("integridade-percent");
-        const integridadeStatus  = document.getElementById("integridade-status");
-        const integridadeText    = document.getElementById("integridade-text");
+        renderExtChart(getInfo(null, null));
 
-        let integridadeInterval = null;
-        let integridadeProg = 100;
-        const CIRCLE_RADIUS = 52;
-        const CIRCLE_CIRC = 2 * Math.PI * CIRCLE_RADIUS;
+        const filtroExtensao = document.getElementById("filtro-extensao");
+        const filtroTamanho  = document.getElementById("filtro-tamanho");
+        const btnAplicar     = document.getElementById("btn-aplicar-filtros");
 
-        if (integridadeCircle) {
-            integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
+        if (btnAplicar) {
+            btnAplicar.addEventListener("click", function () {
+                const extCode = filtroExtensao ? filtroExtensao.value : "";
+                const sizeKey = filtroTamanho  ? filtroTamanho.value  : "";
+
+                const info = getInfo(
+                    extCode || null,
+                    sizeKey || null
+                );
+                renderExtChart(info);
+            });
         }
+    }
 
-        function setIntegridadeProgress(p) {
-            if (!integridadeCircle || !integridadePercent) return;
-            const val = Math.max(0, Math.min(100, p));
-            const offset = CIRCLE_CIRC * (1 - val / 100);
-            integridadeCircle.style.strokeDashoffset = offset;
-            integridadePercent.textContent = val + "%";
+    const integridadeCircle = document.getElementById("integridade-circle-fg");
+    const integridadePercent = document.getElementById("integridade-percent");
+    const integridadeStatus  = document.getElementById("integridade-status");
+    const integridadeText    = document.getElementById("integridade-text");
+
+    let integridadeInterval = null;
+    let integridadeProg = 100;
+    const CIRCLE_RADIUS = 52;
+    const CIRCLE_CIRC = 2 * Math.PI * CIRCLE_RADIUS;
+
+    if (integridadeCircle) {
+        integridadeCircle.style.strokeDasharray = CIRCLE_CIRC;
+    }
+
+    function setIntegridadeProgress(p) {
+        if (!integridadeCircle || !integridadePercent) return;
+        const val = Math.max(0, Math.min(100, p));
+        const offset = CIRCLE_CIRC * (1 - val / 100);
+        integridadeCircle.style.strokeDashoffset = offset;
+        integridadePercent.textContent = val + "%";
+    }
+
+    setIntegridadeProgress(100);
+
+    function ativarLoaderIntegridade() {
+        integridadeProg = 0;
+        setIntegridadeProgress(0);
+
+        if (integridadeStatus) integridadeStatus.textContent = "analisando";
+        if (integridadeText)   integridadeText.textContent   = "Varredura em andamento, aguarde...";
+
+        integridadeInterval = setInterval(() => {
+            if (integridadeProg < 95) {
+                integridadeProg += 1;
+                setIntegridadeProgress(integridadeProg);
+            }
+        }, 200);
+    }
+
+    function finalizarLoaderIntegridade() {
+        if (integridadeInterval) {
+            clearInterval(integridadeInterval);
+            integridadeInterval = null;
         }
-
+        integridadeProg = 100;
         setIntegridadeProgress(100);
+        if (integridadeStatus) integridadeStatus.textContent = "concluído";
+        if (integridadeText)   integridadeText.textContent   = "Varredura finalizada. Atualizando painel...";
+    }
 
-        function ativarLoaderIntegridade() {
-            integridadeProg = 0;
-            setIntegridadeProgress(0);
+    function setupModal(buttonId, modalId, options = {}) {
+        const {
+            confirmOnClose = false,
+            confirmTitle = "Cancelar operação?",
+            confirmText = "Os dados informados serão descartados. Deseja fechar este painel?",
+            confirmLabel = "Fechar",
+            cancelLabel = "Voltar",
+            cancelNotification 
+        } = options;
 
-            if (integridadeStatus) integridadeStatus.textContent = "analisando";
-            if (integridadeText)   integridadeText.textContent   = "Varredura em andamento, aguarde...";
+        const trigger  = document.getElementById(buttonId);
+        const backdrop = document.getElementById(modalId);
+        if (!trigger || !backdrop) return;
 
-            integridadeInterval = setInterval(() => {
-                if (integridadeProg < 95) {
-                    integridadeProg += 1;
-                    setIntegridadeProgress(integridadeProg);
-                }
-            }, 200);
+        const closeButtons = backdrop.querySelectorAll("[data-modal-close]");
+
+        function openModal() {
+            backdrop.classList.add("is-open");
+            const input = backdrop.querySelector("input[type='text']");
+            if (input) {
+                setTimeout(() => input.focus(), 100);
+            }
         }
 
-        function finalizarLoaderIntegridade() {
-            if (integridadeInterval) {
-                clearInterval(integridadeInterval);
-                integridadeInterval = null;
+        function doClose() {
+            const form = backdrop.querySelector("form");
+            if (form) {
+                form.reset();
             }
-            integridadeProg = 100;
-            setIntegridadeProgress(100);
-            if (integridadeStatus) integridadeStatus.textContent = "concluído";
-            if (integridadeText)   integridadeText.textContent   = "Varredura finalizada. Atualizando painel...";
+
+            const textInputs = backdrop.querySelectorAll("input[type='text'], textarea");
+            textInputs.forEach(inp => { inp.value = ""; });
+
+            const checks = backdrop.querySelectorAll("input[type='checkbox'], input[type='radio']");
+            checks.forEach(ch => { ch.checked = false; });
+
+            backdrop.classList.remove("is-open");
         }
 
-        if (btnNovaVarredura && modalBackdrop && formNovaVarredura) {
-            function openModal() {
-                modalBackdrop.classList.add("is-open");
-                const input = document.getElementById("scan-path");
-                if (input) setTimeout(() => input.focus(), 100);
+        async function requestClose() {
+            if (!confirmOnClose || typeof window.showConfirm !== "function") {
+                // fecha direto (e já limpa)
+                doClose();
+                return;
             }
 
-            function closeModal() {
-                modalBackdrop.classList.remove("is-open");
-            }
+            const ok = await window.showConfirm({
+                title:  confirmTitle,
+                text:   confirmText,
+                confirmLabel,
+                cancelLabel,
+                variant: "warning",
+            });
 
-            async function requestCloseModal() {
-                if (typeof window.showConfirm !== "function") {
-                    closeModal();
-                    return;
-                }
-
-                const ok = await window.showConfirm({
-                    title: "Cancelar nova varredura?",
-                    text: "Os dados informados serão descartados. Deseja fechar este painel?",
-                    confirmLabel: "Fechar",
-                    cancelLabel: "Voltar",
-                    variant: "warning",
-                });
-
-                if (ok) {
-                    closeModal();
-                    window.enqueueNotification?.({
-                        title: "Varredura cancelada",
-                        text: "A nova varredura não foi iniciada.",
-                        variant: "info",
-                    });
+            if (ok) {
+                // usuário confirmou → fecha E limpa inputs
+                doClose();
+                if (cancelNotification) {
+                    window.enqueueNotification?.(cancelNotification);
+                    window.displayQueuedNotifications?.();
                 }
             }
-
-            btnNovaVarredura.addEventListener("click", openModal);
-
-            // X e botão "Cancelar" → confirm
-            closeButtons.forEach(btn => {
-                btn.addEventListener("click", () => {
-                    requestCloseModal();
-                });
-            });
-
-            // clique fora
-            modalBackdrop.addEventListener("click", function (e) {
-                if (e.target === modalBackdrop) {
-                    requestCloseModal();
-                }
-            });
-
-            // ESC
-            document.addEventListener("keydown", function (e) {
-                if (e.key === "Escape" && modalBackdrop.classList.contains("is-open")) {
-                    requestCloseModal();
-                }
-            });
-
-            // submit NÃO pede confirm
-            formNovaVarredura.addEventListener("submit", function (e) {
-                e.preventDefault();
-                closeModal();
-                ativarLoaderIntegridade();
-
-                const formData = new FormData(formNovaVarredura);
-                const action = formNovaVarredura.action;
-                const csrfInput = formNovaVarredura.querySelector('input[name="csrfmiddlewaretoken"]');
-                const csrfToken = csrfInput ? csrfInput.value : "";
-
-                fetch(action, {
-                    method: "POST",
-                    headers: { "X-CSRFToken": csrfToken },
-                    body: formData
-                })
-                .then(resp => {
-                    finalizarLoaderIntegridade();
-                    setTimeout(() => window.location.reload(), 800);
-                })
-                .catch(err => {
-                    console.error("Erro na varredura:", err);
-                    if (integridadeStatus) integridadeStatus.textContent = "erro";
-                    if (integridadeText)   integridadeText.textContent   = "Erro ao iniciar a varredura. Tente novamente.";
-                });
-            });
+            // se não confirmar, não faz nada (mantém valores)
         }
+
+        // abrir
+        trigger.addEventListener("click", openModal);
+
+        // fechar pelos botões (X e Cancelar)
+        closeButtons.forEach(btn => {
+            btn.addEventListener("click", () => {
+                requestClose();
+            });
+        });
+
+        // fechar clicando fora
+        backdrop.addEventListener("click", function (e) {
+            if (e.target === backdrop) {
+                requestClose();
+            }
+        });
+
+        // fechar com ESC
+        document.addEventListener("keydown", function (e) {
+            if (e.key === "Escape" && backdrop.classList.contains("is-open")) {
+                requestClose();
+            }
+        });
+    }
+
+    function handleScanFormSubmit(form, loadingMessage) {
+        if (!form) return;
+
+        form.addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            const backdrop = form.closest(".modal-backdrop");
+            if (backdrop) {
+                backdrop.classList.remove("is-open");
+            }
+
+            window.enqueueNotification?.({
+                title: "Processando",
+                text: loadingMessage || "Processando, aguarde...",
+                variant: "info",
+            });
+            window.displayQueuedNotifications?.();
+
+            ativarLoaderIntegridade();
+
+            const formData = new FormData(form);
+            const action = form.action;
+            const csrfInput = form.querySelector('input[name="csrfmiddlewaretoken"]');
+            const csrfToken = csrfInput ? csrfInput.value : "";
+
+            fetch(action, {
+                method: "POST",
+                headers: { "X-CSRFToken": csrfToken },
+                body: formData
+            })
+            .then(resp => {
+                finalizarLoaderIntegridade();
+
+                if (!resp.ok) {
+                    throw new Error(`HTTP ${resp.status}`);
+                }
+
+                window.enqueueNotification?.({
+                    title: "Concluído",
+                    text: "Operação finalizada. Atualizando painel...",
+                    variant: "success",
+                });
+                window.displayQueuedNotifications?.();
+
+                setTimeout(() => window.location.reload(), 800);
+            })
+            .catch(err => {
+                console.error("Erro ao enviar formulário de varredura/cache:", err);
+                if (integridadeStatus) integridadeStatus.textContent = "erro";
+                if (integridadeText)   integridadeText.textContent   = "Erro ao iniciar a operação. Tente novamente.";
+
+                window.enqueueNotification?.({
+                    title: "Erro",
+                    text: "Não foi possível iniciar a operação. Verifique o caminho e tente novamente.",
+                    variant: "error",
+                });
+                window.displayQueuedNotifications?.();
+            });
+        });
+    }
+
+    // =========================
+    // INICIALIZAÇÃO DOS MODAIS
+    // =========================
+    setupModal("btn-nova-varredura", "modal-nova-varredura", {
+        confirmOnClose: true,
+        confirmTitle: "Cancelar nova varredura?",
+        confirmText: "Os dados informados serão descartados. Deseja fechar este painel?",
+        confirmLabel: "Fechar",
+        cancelLabel: "Voltar",
+        cancelNotification: {
+            title: "Varredura cancelada",
+            text: "A nova varredura não foi iniciada.",
+            variant: "info",
+        },
     });
-    </script>
 
+    setupModal("btn-atualizar-cache", "modal-atualizar-cache", {
+        confirmOnClose: true,
+        confirmTitle: "Cancelar atualização do cache?",
+        confirmText: "Os dados informados serão descartados. Deseja fechar este painel?",
+        confirmLabel: "Fechar",
+        cancelLabel: "Voltar",
+        cancelNotification: {
+            title: "Atualização cancelada",
+            text: "A atualização do cache não foi iniciada.",
+            variant: "info",
+        },
+    });
+
+    const formNovaVarredura  = document.querySelector("#modal-nova-varredura form");
+    const formAtualizarCache = document.querySelector("#modal-atualizar-cache form");
+
+    if (formNovaVarredura) {
+        handleScanFormSubmit(formNovaVarredura, "Nova varredura em andamento, aguarde...");
+    }
+    if (formAtualizarCache) {
+        handleScanFormSubmit(formAtualizarCache, "Atualizando cache, aguarde...");
+    }
+
+});
+</script>
 
 {% endblock %}

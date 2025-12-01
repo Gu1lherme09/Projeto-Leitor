@@ -9,6 +9,8 @@ class Arquivo:
         self.tamanho = tamanho  # tamanho em bytes
         self.caminho_completo = caminho_completo
         self.hash_md5 = None
+        # Flag para indicar que o arquivo foi removido do disco mas permanece no cache
+        self.removido = False
 
     def _calcular_hash(self):
         """Calcula o hash MD5 do arquivo baseado no seu conteúdo"""
@@ -57,7 +59,8 @@ class Arquivo:
             "extensao": self.extensao,
             "tamanho": self.tamanho,
             "hash_md5": self.hash_md5,
-            "caminho_completo": self.caminho_completo
+            "caminho_completo": self.caminho_completo,
+            "removido": self.removido,
         }
 
     @classmethod
@@ -70,4 +73,5 @@ class Arquivo:
             caminho_completo=data.get("caminho_completo")
         )
         arquivo.hash_md5 = data.get("hash_md5")
+        arquivo.removido = data.get("removido", False)
         return arquivo

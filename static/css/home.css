@@ -1072,8 +1072,6 @@ body {
     background: rgba(148, 163, 184, 0.45);
 }
 
-/* Variantes */
-
 .toast--info {
     border-left-color: var(--accent);
 }

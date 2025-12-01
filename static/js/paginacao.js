@@ -1,4 +1,3 @@
-// static/js/card-filter.js
 (function () {
     function resolveElement(ref) {
         if (!ref) return null;
@@ -7,7 +6,6 @@
         return null;
     }
 
-    // Gera lista de páginas mostrando sempre primeira, última e vizinhas da atual
     function buildPageRange(totalPages, currentPage, maxButtons) {
         const pages = [];
 

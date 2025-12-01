@@ -4,15 +4,18 @@ import os
 import json
 from collections import defaultdict
 import shutil
-
 from django.conf import settings
 from django.shortcuts import render
 from django.shortcuts import render, redirect
 from django.contrib import messages
-
 from .Pasta import Pasta
 from .ManipuladorPasta import ManipuladorPasta
-
+from datetime import datetime
+import os
+import json
+from collections import defaultdict
+import shutil
+from .NoPasta import NoPasta
 
 CACHE_PATH = os.path.join(settings.BASE_DIR, "Cache", "cache.json")
 
@@ -24,19 +27,74 @@ def carregar_raiz_do_cache():
     raiz = Pasta.from_dict(estrutura)
     return raiz, data
 
+def _marcar_arquivos_removidos(raiz_antiga, raiz_final):
+    from .Arquivo import Arquivo
 
-def salvar_cache_atualizado(raiz, meta, extra_meta=None):
-    """
-    Atualiza o cache.json mantendo os metadados antigos
-    e escrevendo a estrutura atual (com hashes novos).
-    """
-    data = {k: v for k, v in meta.items() if k != "estrutura"}
-    data["estrutura"] = raiz.to_dict()
-    if extra_meta:
-        data.update(extra_meta)
+    def find_pasta(root_pasta, target_norm):
+        if os.path.normpath(root_pasta.caminho_completo).lower() == target_norm:
+            return root_pasta
+        atual = root_pasta.subpastas
+        while atual:
+            res = find_pasta(atual.pasta, target_norm)
+            if res:
+                return res
+            atual = atual.proximo
+        return None
+
+    presentes = set()
+    for caminho_pasta, arquivo in raiz_final.coletar_arquivos():
+        key = os.path.normpath(os.path.join(caminho_pasta, f"{arquivo.nome}.{arquivo.extensao}")).lower()
+        presentes.add(key)
+
+
+    for caminho_pasta, arquivo_antigo in raiz_antiga.coletar_arquivos():
+        key = os.path.normpath(os.path.join(caminho_pasta, f"{arquivo_antigo.nome}.{arquivo_antigo.extensao}")).lower()
+        if key in presentes:
+            continue
+
+        norm_pasta = os.path.normpath(caminho_pasta).lower()
+        pasta_dest = find_pasta(raiz_final, norm_pasta)
+        if pasta_dest is None:
+            
+            from .Pasta import Pasta
+            from .NoPasta import NoPasta
+            pasta_dest = Pasta(caminho_pasta, ler_conteudo=False)
+            pasta_dest.arquivos = []
+            novo_no = NoPasta(pasta_dest)
+            
+            if raiz_final.subpastas is None:
+                raiz_final.subpastas = novo_no
+            else:
+                tail = raiz_final.subpastas
+                while tail.proximo:
+                    tail = tail.proximo
+                tail.proximo = novo_no
+                
+        novo = Arquivo(arquivo_antigo.nome, arquivo_antigo.extensao, arquivo_antigo.tamanho, arquivo_antigo.caminho_completo)
+        novo.hash_md5 = arquivo_antigo.hash_md5
+        novo.removido = True
+        pasta_dest.arquivos.append(novo)
+
+def salvar_cache_atualizado(data_or_raiz, meta=None, extra_meta=None):
+    cache_dir = os.path.dirname(CACHE_PATH)
+    os.makedirs(cache_dir, exist_ok=True)
+
+    if isinstance(data_or_raiz, dict) and meta is None:
+        data_to_save = data_or_raiz
+
+    else:
+        raiz = data_or_raiz
+        base_meta = meta.copy() if meta else {}
+
+        if extra_meta:
+            base_meta.update(extra_meta)
+
+        data_to_save = base_meta
+        data_to_save["estrutura"] = raiz.to_dict()
 
     with open(CACHE_PATH, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
+        json.dump(data_to_save, f, ensure_ascii=False, indent=2)
+
 
 def carregar_raiz_do_cache():
     """
@@ -59,20 +117,6 @@ def carregar_raiz_do_cache():
 
     except (json.JSONDecodeError, OSError, KeyError, TypeError):
         return None, None
-
-
-from datetime import datetime
-import os
-import json
-from collections import defaultdict
-import shutil
-
-from django.conf import settings
-from django.shortcuts import render, redirect
-from django.contrib import messages
-
-from .Pasta import Pasta
-from .ManipuladorPasta import ManipuladorPasta
 
 CACHE_PATH = os.path.join(settings.BASE_DIR, "Cache", "cache.json")
 
@@ -376,4 +420,168 @@ def nova_varredura(request):
         "Varredura concluída. Hash calculado." if calcular_hash
         else "Varredura concluída sem cálculo de hash."
     )
+    return redirect("home")
+
+def _replace_subtree(raiz, sub_arvore_nova):
+    def _merge_pastas(old_pasta, new_pasta):
+        novos_chaves = {(a.nome.lower(), (a.extensao or "").lower()) for a in new_pasta.arquivos}
+        for a in old_pasta.arquivos:
+            key = (a.nome.lower(), (a.extensao or "").lower())
+            if key not in novos_chaves:
+                a.removido = not (a.caminho_completo and os.path.exists(a.caminho_completo))
+                new_pasta.arquivos.append(a)
+
+        novos_sub = {}
+        atual_no = new_pasta.subpastas
+        while atual_no:
+            novos_sub[os.path.normpath(atual_no.pasta.caminho_completo).lower()] = atual_no.pasta
+            atual_no = atual_no.proximo
+
+        antigo_no = old_pasta.subpastas
+        while antigo_no:
+            old_sub = antigo_no.pasta
+            key = os.path.normpath(old_sub.caminho_completo).lower()
+            if key in novos_sub:
+                _merge_pastas(old_sub, novos_sub[key])
+            else:
+                novo_no = NoPasta(old_sub)
+                if new_pasta.subpastas is None:
+                    new_pasta.subpastas = novo_no
+                else:
+                    tail = new_pasta.subpastas
+                    while tail.proximo:
+                        tail = tail.proximo
+                    tail.proximo = novo_no
+            antigo_no = antigo_no.proximo
+
+    norm_raiz = os.path.normpath(raiz.caminho_completo).lower() if raiz.caminho_completo else ""
+    norm_sub = os.path.normpath(sub_arvore_nova.caminho_completo).lower() if sub_arvore_nova.caminho_completo else ""
+    if norm_raiz and norm_raiz == norm_sub:
+        _merge_pastas(raiz, sub_arvore_nova)
+        return True
+
+    if not raiz.caminho_completo or not sub_arvore_nova.caminho_completo.startswith(raiz.caminho_completo + os.sep):
+        return False
+
+    atual = raiz.subpastas
+    while atual:
+        pasta_atual = atual.pasta
+        
+        if os.path.normpath(pasta_atual.caminho_completo) == os.path.normpath(sub_arvore_nova.caminho_completo):
+            _merge_pastas(pasta_atual, sub_arvore_nova)
+            atual.pasta = sub_arvore_nova
+            return True
+
+        if sub_arvore_nova.caminho_completo.startswith(pasta_atual.caminho_completo + os.sep):
+            if _replace_subtree(pasta_atual, sub_arvore_nova):
+                return True
+        
+        atual = atual.proximo
+        
+    return False
+
+
+def atualizar_cache(request):
+    if request.method != "POST":
+        return redirect("home")
+
+    scan_path = request.POST.get("scan_path")
+    calcular_hash = bool(request.POST.get("calcular_hash"))
+
+    if not os.path.isdir(scan_path):
+        messages.error(request, f"O caminho '{scan_path}' não existe ou não é uma pasta.")
+        return redirect("home")
+
+    raiz_antiga, meta_antigo = carregar_raiz_do_cache()
+    if raiz_antiga is None:
+        messages.error(request, "Nenhum cache encontrado para atualizar. Execute uma 'Nova varredura' primeiro.")
+        return redirect("home")
+
+    from .Pasta import Pasta
+    raiz_nova = Pasta(scan_path, ler_conteudo=True)
+
+    if not raiz_nova or (not raiz_nova.arquivos and not raiz_nova.subpastas):
+        messages.info(request, f"Nenhum arquivo ou pasta encontrado em '{scan_path}'. O cache não foi alterado.")
+        return redirect("home")
+
+    old_roots = []
+    if raiz_antiga.caminho_completo != "": 
+        old_roots.append(raiz_antiga)
+    else: 
+        atual = raiz_antiga.subpastas
+        while atual:
+            old_roots.append(atual.pasta)
+            atual = atual.proximo
+
+    final_roots = []
+    raiz_nova_mesclada = False
+    norm_nova_path = os.path.normpath(raiz_nova.caminho_completo).lower()
+
+    for old_root in old_roots:
+        norm_old_path = os.path.normpath(old_root.caminho_completo).lower()
+        if norm_old_path == norm_nova_path:
+            try:
+                _replace_subtree(old_root, raiz_nova)
+            except Exception:
+                pass
+            raiz_nova_mesclada = True
+            final_roots.append(raiz_nova)
+
+        elif not norm_old_path.startswith(norm_nova_path + os.sep) and norm_old_path != norm_nova_path:
+            final_roots.append(old_root)
+
+    for root in final_roots:
+        norm_root_path = os.path.normpath(root.caminho_completo).lower()
+        if norm_nova_path.startswith(norm_root_path + os.sep):
+            _replace_subtree(root, raiz_nova)
+            raiz_nova_mesclada = True
+            break
+    
+    if not raiz_nova_mesclada:
+        final_roots.append(raiz_nova)
+
+    raiz_final = Pasta(caminho="", ler_conteudo=False)
+    if final_roots:
+        head = NoPasta(final_roots[0])
+        atual = head
+        for i in range(1, len(final_roots)):
+            novo_no = NoPasta(final_roots[i])
+            atual.proximo = novo_no
+            atual = novo_no
+        raiz_final.subpastas = head
+
+    if calcular_hash:
+        todos_arquivos = raiz_final.coletar_arquivos()
+        for _, arq in todos_arquivos:
+            if arq.hash_md5 is None and arq.caminho_completo and os.path.exists(arq.caminho_completo):
+                arq._calcular_hash()
+        meta_antigo["hash_calculado"] = True
+
+    _marcar_arquivos_removidos(raiz_antiga, raiz_final)
+
+    def _append_old_entries(old_root, raiz_final):
+        norm_old = os.path.normpath(old_root.caminho_completo).lower()
+        atual = raiz_final.subpastas
+        while atual:
+            if os.path.normpath(atual.pasta.caminho_completo).lower() == norm_old:
+                return True 
+            atual = atual.proximo
+        novo_no = NoPasta(old_root)
+        if raiz_final.subpastas is None:
+            raiz_final.subpastas = novo_no
+        else:
+            tail = raiz_final.subpastas
+            while tail.proximo:
+                tail = tail.proximo
+            tail.proximo = novo_no
+        return True
+
+
+    meta_antigo["data"] = datetime.now().strftime('%d_%m_%Y,%H:%M')
+    meta_antigo["paths_varridos"] = [p.caminho_completo for p in final_roots]
+    data_to_save = meta_antigo.copy()
+    data_to_save["estrutura"] = raiz_final.to_dict()
+    salvar_cache_atualizado(data_to_save)
+
+    messages.success(request, f"Cache hierarquicamente atualizado com os dados de '{scan_path}'.")
     return redirect("home")

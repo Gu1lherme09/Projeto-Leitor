@@ -52,16 +52,13 @@
                 minutesText = "agora mesmo";
 
             } else if (CACHE_AGE_MIN < 60) {
-                // 1 – 59 min
                 minutesText = `há ${CACHE_AGE_MIN} minuto(s)`;
 
             } else if (CACHE_AGE_MIN < 1440) {
-                // 1 – 23 horas (1440 min = 24h)
                 const hours = Math.floor(CACHE_AGE_MIN / 60);
                 minutesText = `há ${hours} hora(s)`;
 
             } else {
-                // 1+ dias
                 const days = Math.floor(CACHE_AGE_MIN / 1440);
                 minutesText = `há ${days} dia(s)`;
             }

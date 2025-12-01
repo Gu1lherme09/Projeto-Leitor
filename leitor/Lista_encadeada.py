@@ -3,8 +3,8 @@ from .Pasta import Pasta
 
 class ListaPastas:
     def __init__(self):
-        self.inicio = None
-        self.fim = None
+        self.inicio = None 
+        self.fim = None  
 
     def adicionar(self, pasta: Pasta):
         novo_no = NoPasta(pasta)
